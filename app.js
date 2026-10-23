@@ -3,13 +3,12 @@
  * High-performance, offline-first client application
  */
 
-// ⭐ นำ Web App URL ที่ได้จาก Google Apps Script มาใส่ในเครื่องหมายคำพูดด้านล่างนี้
-// เช่น: const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
+// ⭐ Web App URL ของคุณ (เชื่อมต่อกับ Google Sheet)
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby_KIXPbaAikCBEW9CEmV6vPSnYQApZY_N0IBalSFP3PB1iyEoDvgjXXVFsPgEWQERE6w/exec';
 
 // ================= APP STATE =================
 const STATE = {
-  apiUrl: DEFAULT_WEB_APP_URL || localStorage.getItem('squid_api_url') || '',
+  apiUrl: DEFAULT_WEB_APP_URL,
   currentTab: 'tab-stockin',
   inFilterRange: 'today',
   outFilterRange: 'today',
@@ -27,15 +26,12 @@ const STATE = {
 };
 
 // ================= STORAGE HELPERS =================
-// เริ่มต้นด้วยข้อมูลว่างเปล่า (ไม่มีข้อมูลตัวอย่าง)
 function loadLocalData() {
-  // ลบข้อมูลตัวอย่างเก่า (ถ้าเคยมีค้างในเครื่อง)
-  if (localStorage.getItem('squid_data_v1')) {
-    localStorage.removeItem('squid_data_v1');
-    localStorage.removeItem('squid_use_demo');
-  }
+  // ล้างข้อมูลเก่าหรือข้อมูลทดสอบที่เคยค้างในเบราว์เซอร์
+  localStorage.removeItem('squid_data_v1');
+  localStorage.removeItem('squid_use_demo');
 
-  const cached = localStorage.getItem('squid_data_clean');
+  const cached = localStorage.getItem('squid_data_v2');
   if (cached) {
     try {
       const data = JSON.parse(cached);
@@ -57,7 +53,7 @@ function loadLocalData() {
 }
 
 function saveLocalData() {
-  localStorage.setItem('squid_data_clean', JSON.stringify({
+  localStorage.setItem('squid_data_v2', JSON.stringify({
     stockIn: STATE.stockIn,
     stockOut: STATE.stockOut,
     customers: STATE.customers,
@@ -193,12 +189,19 @@ function initStockInEvents() {
 
   // Open Add Modal
   document.getElementById('btnOpenAddIn').addEventListener('click', () => {
-    populateSupplierDatalist();
     document.getElementById('formAddIn').reset();
     document.getElementById('inCalcTotal').textContent = '฿0.00';
+    hideSupplierSuggestions();
     openModal('modalAddIn');
-    setTimeout(() => document.getElementById('inSupplierInput').focus(), 150);
+    setTimeout(() => {
+      const inp = document.getElementById('inSupplierInput');
+      inp.focus();
+      renderSupplierSuggestions('');
+    }, 150);
   });
+
+  // Custom Autocomplete for Supplier
+  initSupplierAutocomplete();
 
   const weightInput = document.getElementById('inWeightInput');
   const priceInput = document.getElementById('inPriceInput');
@@ -239,28 +242,86 @@ function initStockInEvents() {
       note
     };
 
-    // บันทึกซัพพลายเออร์ใหม่ลงในรายการอัตโนมัติ
     STATE.stockIn.unshift(newRecord);
     if (!STATE.suppliers[supplier]) {
       STATE.suppliers[supplier] = { name: supplier };
     }
     saveLocalData();
-    populateSupplierDatalist();
 
     syncStockInToApi(newRecord);
 
     closeModal('modalAddIn');
-    showToast(`บันทึกรับเข้า ${product} เรียบร้อย!`);
+    showToast(`บันทึกรับเข้า ${product} สำเร็จ!`);
     renderStockInList();
     renderDashboard();
   });
+}
+
+function initSupplierAutocomplete() {
+  const input = document.getElementById('inSupplierInput');
+  const dropdown = document.getElementById('inSupplierSuggestions');
+
+  input.addEventListener('input', () => {
+    renderSupplierSuggestions(input.value.trim());
+  });
+
+  input.addEventListener('focus', () => {
+    renderSupplierSuggestions(input.value.trim());
+  });
+
+  // Close dropdown when clicked outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#inSupplierInput') && !e.target.closest('#inSupplierSuggestions')) {
+      hideSupplierSuggestions();
+    }
+  });
+}
+
+function renderSupplierSuggestions(query) {
+  const dropdown = document.getElementById('inSupplierSuggestions');
+  const input = document.getElementById('inSupplierInput');
+  if (!dropdown) return;
+
+  // รวบรวมรายชื่อซัพพลายเออร์ทั้งหมด
+  const names = new Set();
+  Object.keys(STATE.suppliers).forEach(n => names.add(n));
+  STATE.stockIn.forEach(r => { if (r.supplier) names.add(r.supplier); });
+
+  const q = query.toLowerCase();
+  const matched = Array.from(names).filter(n => !q || n.toLowerCase().includes(q));
+
+  if (matched.length === 0) {
+    hideSupplierSuggestions();
+    return;
+  }
+
+  dropdown.innerHTML = matched.slice(0, 8).map(name => `
+    <div class="suggestion-item" data-val="${escapeHtml(name)}">
+      <span class="suggestion-title">⚓ ${escapeHtml(name)}</span>
+      <span class="suggestion-sub">แตะเพื่อเลือกชื่อนี้</span>
+    </div>
+  `).join('');
+
+  dropdown.querySelectorAll('.suggestion-item').forEach(item => {
+    item.addEventListener('click', () => {
+      input.value = item.getAttribute('data-val');
+      hideSupplierSuggestions();
+    });
+  });
+
+  dropdown.classList.add('show');
+}
+
+function hideSupplierSuggestions() {
+  const dropdown = document.getElementById('inSupplierSuggestions');
+  if (dropdown) dropdown.classList.remove('show');
 }
 
 function renderStockInList() {
   const container = document.getElementById('inListContainer');
   const filtered = STATE.stockIn.filter(item => {
     const matchRange = isDateInRange(item.timestamp, STATE.inFilterRange);
-    const matchSearch = !STATE.inSearchQuery || item.supplier.toLowerCase().includes(STATE.inSearchQuery);
+    const matchSearch = !STATE.inSearchQuery || (item.supplier && item.supplier.toLowerCase().includes(STATE.inSearchQuery));
     return matchRange && matchSearch;
   });
 
@@ -300,8 +361,8 @@ function renderStockInList() {
         <span class="record-amount text-danger">${formatCurrency(item.total)}</span>
       </div>
       <div class="record-footer">
-        <span>${item.note ? '📝 ' + escapeHtml(item.note) : 'แตะเพื่อดูสรุปซัพพลายเออร์นี้'}</span>
-        <span style="color: var(--primary); font-weight: 500;">ดูประวัติซัพนี้ &rsaquo;</span>
+        <span>${item.note ? '📝 ' + escapeHtml(item.note) : 'แตะเพื่อดูสรุปยอดซัพนี้'}</span>
+        <span style="color: var(--primary); font-weight: 600;">ดูประวัติซัพนี้ &rsaquo;</span>
       </div>
     </div>
   `).join('');
@@ -331,7 +392,7 @@ function openSupplierDetail(supplierName) {
       </div>
     </div>
 
-    <h4 style="font-size:0.9rem; margin-bottom: 8px;">ประวัติการรับเข้าจากซัพนี้ (${supplierRecords.length} บิล)</h4>
+    <h4 style="font-size:1rem; margin-bottom: 8px;">ประวัติการรับเข้าจากซัพนี้ (${supplierRecords.length} บิล)</h4>
     <div style="max-height: 250px; overflow-y: auto;">
       <table class="detail-table">
         <thead>
@@ -390,22 +451,8 @@ function initStockOutEvents() {
     });
   });
 
-  // ⭐ การดึงข้อมูลลูกค้า: หากมีข้อมูลเดิม ให้ดึงมาแสดงอัตโนมัติ / หากยังไม่มี ให้กรอกข้อมูลใหม่ได้เลย
-  const custInput = document.getElementById('outCustomerInput');
-  const phoneInput = document.getElementById('outCustomerPhone');
-  const addressInput = document.getElementById('outCustomerAddress');
-
-  const checkAndFillCustomer = () => {
-    const name = custInput.value.trim();
-    if (STATE.customers[name]) {
-      const c = STATE.customers[name];
-      if (c.phone) phoneInput.value = c.phone;
-      if (c.address) addressInput.value = c.address;
-    }
-  };
-
-  custInput.addEventListener('input', checkAndFillCustomer);
-  custInput.addEventListener('change', checkAndFillCustomer);
+  // Custom Autocomplete for Customer
+  initCustomerAutocomplete();
 
   const productSelect = document.getElementById('outProductSelect');
   const priceInput = document.getElementById('outPriceInput');
@@ -431,20 +478,24 @@ function initStockOutEvents() {
 
   // Open Add Modal
   document.getElementById('btnOpenAddOut').addEventListener('click', () => {
-    populateCustomerDatalist();
     document.getElementById('formAddOut').reset();
     productSelect.dispatchEvent(new Event('change'));
     document.getElementById('outCalcTotal').textContent = '฿0.00';
+    hideCustomerSuggestions();
     openModal('modalAddOut');
-    setTimeout(() => document.getElementById('outCustomerInput').focus(), 150);
+    setTimeout(() => {
+      const inp = document.getElementById('outCustomerInput');
+      inp.focus();
+      renderCustomerSuggestions('');
+    }, 150);
   });
 
-  // Submit Stock Out: รองรับทั้งลูกค้าเก่าและเพิ่มลูกค้าใหม่ทันที
+  // Submit Stock Out
   document.getElementById('formAddOut').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const customer = custInput.value.trim();
-    const phone = phoneInput.value.trim();
-    const address = addressInput.value.trim();
+    const customer = document.getElementById('outCustomerInput').value.trim();
+    const phone = document.getElementById('outCustomerPhone').value.trim();
+    const address = document.getElementById('outCustomerAddress').value.trim();
     const product = productSelect.value;
     const weight = parseFloat(weightInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
@@ -465,30 +516,106 @@ function initStockOutEvents() {
       weight,
       price,
       total,
-      status: 'รอชำระ', // บันทึกอัตโนมัติ สถานะคือ รอชำระ
+      status: 'รอชำระ',
       paidAt: null
     };
 
     STATE.stockOut.unshift(newRecord);
-    // บันทึก/อัปเดตข้อมูลลูกค้าลงฐานข้อมูล เพื่อให้ดึงมาใช้ได้ในครั้งถัดไป
     STATE.customers[customer] = { phone, address };
     saveLocalData();
-    populateCustomerDatalist();
 
     syncStockOutToApi(newRecord);
 
     closeModal('modalAddOut');
-    showToast(`บันทึกขายให้ "${customer}" เรียบร้อย (รอชำระ)`);
+    showToast(`บันทึกขายให้ "${customer}" สำเร็จ (รอชำระ)`);
     renderStockOutList();
     renderDashboard();
   });
+}
+
+function initCustomerAutocomplete() {
+  const input = document.getElementById('outCustomerInput');
+  const dropdown = document.getElementById('outCustomerSuggestions');
+  const phoneInput = document.getElementById('outCustomerPhone');
+  const addressInput = document.getElementById('outCustomerAddress');
+
+  input.addEventListener('input', () => {
+    renderCustomerSuggestions(input.value.trim());
+  });
+
+  input.addEventListener('focus', () => {
+    renderCustomerSuggestions(input.value.trim());
+  });
+
+  // Close when clicked outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#outCustomerInput') && !e.target.closest('#outCustomerSuggestions')) {
+      hideCustomerSuggestions();
+    }
+  });
+}
+
+function renderCustomerSuggestions(query) {
+  const dropdown = document.getElementById('outCustomerSuggestions');
+  const input = document.getElementById('outCustomerInput');
+  const phoneInput = document.getElementById('outCustomerPhone');
+  const addressInput = document.getElementById('outCustomerAddress');
+  if (!dropdown) return;
+
+  // รวบรวมรายชื่อลูกค้าพร้อมข้อมูลติดต่อ
+  const customerMap = {};
+  Object.keys(STATE.customers).forEach(n => {
+    customerMap[n] = STATE.customers[n] || {};
+  });
+  STATE.stockOut.forEach(r => {
+    if (r.customer && !customerMap[r.customer]) {
+      customerMap[r.customer] = { phone: r.phone || '', address: r.address || '' };
+    }
+  });
+
+  const q = query.toLowerCase();
+  const matched = Object.keys(customerMap).filter(n => !q || n.toLowerCase().includes(q));
+
+  if (matched.length === 0) {
+    hideCustomerSuggestions();
+    return;
+  }
+
+  dropdown.innerHTML = matched.slice(0, 8).map(name => {
+    const c = customerMap[name] || {};
+    const subText = [c.phone ? '📞 ' + c.phone : '', c.address ? '📍 ' + c.address : ''].filter(Boolean).join(' • ') || 'แตะเพื่อเลือกและดึงข้อมูล';
+    return `
+      <div class="suggestion-item" data-name="${escapeHtml(name)}" data-phone="${escapeHtml(c.phone || '')}" data-address="${escapeHtml(c.address || '')}">
+        <span class="suggestion-title">👤 ${escapeHtml(name)}</span>
+        <span class="suggestion-sub">${subText}</span>
+      </div>
+    `;
+  }).join('');
+
+  dropdown.querySelectorAll('.suggestion-item').forEach(item => {
+    item.addEventListener('click', () => {
+      input.value = item.getAttribute('data-name');
+      const p = item.getAttribute('data-phone');
+      const a = item.getAttribute('data-address');
+      if (p) phoneInput.value = p;
+      if (a) addressInput.value = a;
+      hideCustomerSuggestions();
+    });
+  });
+
+  dropdown.classList.add('show');
+}
+
+function hideCustomerSuggestions() {
+  const dropdown = document.getElementById('outCustomerSuggestions');
+  if (dropdown) dropdown.classList.remove('show');
 }
 
 function renderStockOutList() {
   const container = document.getElementById('outListContainer');
   const filtered = STATE.stockOut.filter(item => {
     const matchRange = isDateInRange(item.timestamp, STATE.outFilterRange);
-    const matchSearch = !STATE.outSearchQuery || item.customer.toLowerCase().includes(STATE.outSearchQuery);
+    const matchSearch = !STATE.outSearchQuery || (item.customer && item.customer.toLowerCase().includes(STATE.outSearchQuery));
     return matchRange && matchSearch;
   });
 
@@ -536,7 +663,7 @@ function renderStockOutList() {
       </div>
       <div class="record-footer">
         <span>🕒 ${formatDateThai(item.timestamp)}</span>
-        <span style="color: var(--primary); font-weight: 500;">คลิกเพื่อดู & ปรับสถานะ &rsaquo;</span>
+        <span style="color: var(--primary); font-weight: 600;">คลิกเพื่อดู & ปรับสถานะ &rsaquo;</span>
       </div>
     </div>
   `).join('');
@@ -559,28 +686,28 @@ function openSaleDetail(saleId) {
       </div>
       <div>
         <div class="detail-item-label">เบอร์โทร</div>
-        <div>${item.phone || '-'}</div>
+        <div style="font-size:0.95rem; font-weight:600;">${item.phone || '-'}</div>
       </div>
       <div>
         <div class="detail-item-label">ที่อยู่ / จัดส่ง</div>
-        <div>${escapeHtml(item.address || '-')}</div>
+        <div style="font-size:0.95rem;">${escapeHtml(item.address || '-')}</div>
       </div>
     </div>
 
-    <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem;">
-      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+    <div style="background:#f8fafc; padding:14px; border-radius:10px; border:1px solid var(--border); font-size:0.95rem; line-height:1.7;">
+      <div style="display:flex; justify-content:space-between;">
         <span>สินค้าที่ซื้อ:</span>
         <strong>${escapeHtml(item.product)}</strong>
       </div>
-      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+      <div style="display:flex; justify-content:space-between;">
         <span>น้ำหนัก:</span>
         <span>${formatWeight(item.weight)} กก.</span>
       </div>
-      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+      <div style="display:flex; justify-content:space-between;">
         <span>ราคาต่อ กก.:</span>
         <span>฿${item.price}</span>
       </div>
-      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+      <div style="display:flex; justify-content:space-between;">
         <span>เวลาที่บันทึก:</span>
         <span>${formatDateThai(item.timestamp)}</span>
       </div>
@@ -590,21 +717,22 @@ function openSaleDetail(saleId) {
           ${item.status === 'ชำระเงินแล้ว' ? '✓ ชำระเงินแล้ว' : '⏳ รอชำระ'}
         </span>
       </div>
-      ${item.paidAt ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; text-align:right;">ชำระเมื่อ: ${formatDateThai(item.paidAt)}</div>` : ''}
+      ${item.paidAt ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px; text-align:right;">ชำระเมื่อ: ${formatDateThai(item.paidAt)}</div>` : ''}
     </div>
   `;
 
+  // ปุ่มปิด และ ปรับสถานะ (กดปิดได้แน่นอน 100%)
   const actions = document.getElementById('saleDetailActions');
   if (item.status === 'รอชำระ') {
     actions.innerHTML = `
-      <button type="button" class="btn btn-outline" data-close="modalSaleDetail">ปิด</button>
+      <button type="button" class="btn btn-outline" data-close="modalSaleDetail" onclick="closeModal('modalSaleDetail')">ปิด</button>
       <button type="button" class="btn btn-success" onclick="updatePaymentStatus('${item.id}', 'ชำระเงินแล้ว')">
         ✓ ปรับเป็นชำระเงินแล้ว
       </button>
     `;
   } else {
     actions.innerHTML = `
-      <button type="button" class="btn btn-outline" data-close="modalSaleDetail">ปิด</button>
+      <button type="button" class="btn btn-outline" data-close="modalSaleDetail" onclick="closeModal('modalSaleDetail')">ปิด</button>
       <button type="button" class="btn btn-outline" style="color:var(--warning)" onclick="updatePaymentStatus('${item.id}', 'รอชำระ')">
         เปลี่ยนกลับเป็นรอชำระ
       </button>
@@ -632,7 +760,6 @@ function updatePaymentStatus(saleId, newStatus) {
 
 // ================= TAB 3: แดชบอร์ด (Dashboard) =================
 function renderDashboard() {
-  // 1. คำนวณสต๊อกคงเหลือปัจจุบัน (รับเข้าทั้งหมด - ขายออกทั้งหมด)
   const stockMap = {
     'หมึกหอม': { in: 0, out: 0 },
     'หมึกกระดอง': { in: 0, out: 0 },
@@ -667,7 +794,7 @@ function renderDashboard() {
   document.getElementById('dashInKluay').textContent = formatWeight(stockMap['หมึกกล้วย'].in);
   document.getElementById('dashOutKluay').textContent = formatWeight(stockMap['หมึกกล้วย'].out);
 
-  // 2. สรุปการเงินเดือนนี้ (นับตั้งแต่วันที่ 1 ของเดือน)
+  // สรุปการเงินเดือนนี้ (นับตั้งแต่วันที่ 1 ของเดือน)
   const { start: monthStart, end: monthEnd } = getFilterRangeBounds('month');
   
   let monthExpense = 0;
@@ -695,7 +822,7 @@ function renderDashboard() {
   profitEl.textContent = formatCurrency(monthProfit);
   profitEl.className = 'fin-val ' + (monthProfit >= 0 ? 'text-success' : 'text-danger');
 
-  // 3. รายการลูกค้าที่ยังไม่ชำระ
+  // รายการลูกค้าที่ยังไม่ชำระ
   const unpaidListEl = document.getElementById('dashUnpaidList');
   const unpaidRecords = STATE.stockOut.filter(r => r.status === 'รอชำระ');
   
@@ -703,7 +830,7 @@ function renderDashboard() {
 
   if (unpaidRecords.length === 0) {
     unpaidListEl.innerHTML = `
-      <div style="text-align:center; padding: 20px; color:var(--text-muted); font-size:0.9rem;">
+      <div style="text-align:center; padding: 20px; color:var(--text-muted); font-size:1rem;">
         🎉 ไม่มีรายการค้างชำระ
       </div>`;
     return;
@@ -727,13 +854,16 @@ function renderDashboard() {
 
 // ================= MODAL HELPERS =================
 function initModals() {
-  document.querySelectorAll('[data-close]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const modalId = btn.getAttribute('data-close');
+  // Global Event Delegation for all close buttons
+  document.addEventListener('click', (e) => {
+    const closeBtn = e.target.closest('[data-close]');
+    if (closeBtn) {
+      const modalId = closeBtn.getAttribute('data-close');
       closeModal(modalId);
-    });
+    }
   });
 
+  // Click outside to close modal
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
@@ -753,38 +883,12 @@ function closeModal(modalId) {
   if (m) m.classList.remove('open');
 }
 
-function populateSupplierDatalist() {
-  const datalist = document.getElementById('supplierList');
-  if (!datalist) return;
-  const uniqueNames = new Set(Object.keys(STATE.suppliers));
-  STATE.stockIn.forEach(r => uniqueNames.add(r.supplier));
-  
-  datalist.innerHTML = Array.from(uniqueNames).map(name => 
-    `<option value="${escapeHtml(name)}">`
-  ).join('');
-}
-
-function populateCustomerDatalist() {
-  const datalist = document.getElementById('customerList');
-  if (!datalist) return;
-  const uniqueNames = new Set(Object.keys(STATE.customers));
-  STATE.stockOut.forEach(r => uniqueNames.add(r.customer));
-
-  datalist.innerHTML = Array.from(uniqueNames).map(name => 
-    `<option value="${escapeHtml(name)}">`
-  ).join('');
-}
-
 // ================= REFRESH & GOOGLE SHEET SYNC =================
 function initRefreshButton() {
   const refreshBtn = document.getElementById('btnRefresh');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      if (STATE.apiUrl) {
-        fetchDataFromGoogle();
-      } else {
-        showToast('กรุณาระบุ Web App URL ใน app.js');
-      }
+      fetchDataFromGoogle();
     });
   }
 }
@@ -792,13 +896,8 @@ function initRefreshButton() {
 function updateConnectionBadge() {
   const badge = document.getElementById('connectionStatus');
   if (!badge) return;
-  if (STATE.apiUrl) {
-    badge.textContent = '🟢 พร้อมใช้งาน (Google Sheet)';
-    badge.style.color = '#10b981';
-  } else {
-    badge.textContent = '⚠️ ใส่ Web App URL ใน app.js';
-    badge.style.color = '#f59e0b';
-  }
+  badge.textContent = '🟢 พร้อมใช้งาน (Google Sheet)';
+  badge.style.color = '#10b981';
 }
 
 // API Integration Helpers
@@ -819,8 +918,6 @@ async function fetchDataFromGoogle() {
       STATE.customers = data.customers || {};
       STATE.suppliers = data.suppliers || {};
       saveLocalData();
-      populateSupplierDatalist();
-      populateCustomerDatalist();
       renderCurrentTab();
       updateConnectionBadge();
       showToast('ดึงข้อมูลจาก Google Sheet สำเร็จ!');
@@ -830,10 +927,10 @@ async function fetchDataFromGoogle() {
   } catch (err) {
     console.error('Fetch error:', err);
     if (badge) {
-      badge.textContent = '⚠️ ไม่สามารถเชื่อมต่อ Sheet ได้';
-      badge.style.color = '#dc2626';
+      badge.textContent = '⚠️ ใช้ข้อมูลในเครื่อง (ออฟไลน์)';
+      badge.style.color = '#f59e0b';
     }
-    showToast('ดึงข้อมูลไม่สำเร็จ โปรดตรวจสอบ Web App URL');
+    showToast('ดึงข้อมูลไม่สำเร็จ กำลังใช้ข้อมูลในเครื่อง');
   }
 }
 
@@ -910,13 +1007,10 @@ window.addEventListener('DOMContentLoaded', () => {
   initRefreshButton();
   updateConnectionBadge();
 
-  // แสดงผลหน้าจอเริ่มต้น (ค่าว่างเปล่า 0 รายการ)
   renderStockInList();
   renderStockOutList();
   renderDashboard();
 
-  // ดึงข้อมูลจริงจาก Google Sheet ทันทีหากใส่ URL ไว้
-  if (STATE.apiUrl) {
-    fetchDataFromGoogle();
-  }
+  // ดึงข้อมูลจริงจาก Google Sheet ทันทีที่เปิดหน้าเว็บ
+  fetchDataFromGoogle();
 });
