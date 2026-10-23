@@ -3,9 +3,13 @@
  * High-performance, offline-first client application
  */
 
+// ⭐ ใส่ Google Apps Script Web App URL ที่นี่ (หรือจะใส่ผ่านปุ่มตั้งค่า ⚙️ บนหน้าเว็บก็ได้)
+// เช่น: const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
+const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby_KIXPbaAikCBEW9CEmV6vPSnYQApZY_N0IBalSFP3PB1iyEoDvgjXXVFsPgEWQERE6w/exec';
+
 // ================= APP STATE =================
 const STATE = {
-  apiUrl: localStorage.getItem('squid_api_url') || '',
+  apiUrl: localStorage.getItem('squid_api_url') || DEFAULT_WEB_APP_URL || '',
   useDemo: localStorage.getItem('squid_use_demo') !== 'false',
   currentTab: 'tab-stockin',
   inFilterRange: 'today',
