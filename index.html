@@ -238,10 +238,8 @@
         <div class="form-group">
           <label>ซัพพลายเออร์ / ร้านส่ง <span class="required">*</span></label>
           <div class="autocomplete-wrapper">
-            <input type="text" id="inSupplierInput" list="supplierList" placeholder="พิมพ์ชื่อเพื่อค้นหาหรือพิมพ์ใหม่..." required autocomplete="off">
-            <datalist id="supplierList">
-              <!-- Dynamically populated -->
-            </datalist>
+            <input type="text" id="inSupplierInput" placeholder="พิมพ์ชื่อเพื่อค้นหา หรือพิมพ์ชื่อใหม่ได้เลย..." required autocomplete="off">
+            <div id="inSupplierSuggestions" class="suggestions-dropdown"></div>
           </div>
         </div>
 
@@ -295,10 +293,8 @@
         <div class="form-group">
           <label>ชื่อลูกค้า <span class="required">*</span></label>
           <div class="autocomplete-wrapper">
-            <input type="text" id="outCustomerInput" list="customerList" placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา..." required autocomplete="off">
-            <datalist id="customerList">
-              <!-- Dynamically populated -->
-            </datalist>
+            <input type="text" id="outCustomerInput" placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา หรือพิมพ์ชื่อใหม่..." required autocomplete="off">
+            <div id="outCustomerSuggestions" class="suggestions-dropdown"></div>
           </div>
         </div>
 
