@@ -25,9 +25,6 @@
         <button id="btnRefresh" class="icon-btn" title="รีเฟรชข้อมูล">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
         </button>
-        <button id="btnSettings" class="icon-btn" title="ตั้งค่าเชื่อมต่อ Google Sheet">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
       </div>
     </div>
   </header>
@@ -385,48 +382,7 @@
     </div>
   </div>
 
-  <!-- ================= MODAL: ตั้งค่า Google Sheet ================= -->
-  <div class="modal-overlay" id="modalSettings">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">⚙️ ตั้งค่าเชื่อมต่อ Google Sheet</h3>
-        <button class="modal-close" data-close="modalSettings">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="settings-desc">ใส่ Google Apps Script Web App URL เพื่อซิงค์ข้อมูลกับ Google Sheet ของคุณ</p>
-        
-        <div class="form-group">
-          <label>Apps Script Web App URL:</label>
-          <input type="url" id="settingApiUrl" placeholder="https://script.google.com/macros/s/.../exec">
-        </div>
 
-        <div class="demo-switch-box">
-          <label class="switch-container">
-            <input type="checkbox" id="settingUseDemo">
-            <span class="switch-slider"></span>
-          </label>
-          <span>ใช้ข้อมูลทดลอง (Demo Mode) เมื่อยังไม่ได้เชื่อมต่อ Sheet</span>
-        </div>
-
-        <div class="guide-box">
-          <h4>💡 วิธีเชื่อมต่อกับ Google Sheet:</h4>
-          <ol>
-            <li>สร้าง Google Sheet ใหม่ 1 ไฟล์</li>
-            <li>ไปที่ Extensions (ส่วนขยาย) > Apps Script</li>
-            <li>วางโค้ดจากไฟล์ <code>Code.gs</code> แล้วกดบันทึก 💾</li>
-            <li>เลือกฟังก์ชัน <strong>setupSheets</strong> แล้วกด <strong>Run (เรียกใช้)</strong> (โค้ดจะสร้างชีตและหัวตารางให้ทันที)</li>
-            <li>กด Deploy (การทำให้ใช้งานได้) > New deployment</li>
-            <li>เลือกประเภท Web app, เข้าถึงได้โดย: <strong>Anyone (ทุกคน)</strong></li>
-            <li>คัดลอก Web App URL มาใส่ในช่องด้านบนนี้</li>
-          </ol>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline" id="btnResetDemo">ล้างข้อมูลตัวอย่าง</button>
-        <button type="button" class="btn btn-primary" id="btnSaveSettings">บันทึกการตั้งค่า</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ================= FIXED BOTTOM NAVIGATION ================= -->
   <nav class="bottom-nav">
