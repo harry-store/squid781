@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ระบบสต๊อกปลาหมึก - หมึกสดส่งตรง</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top App Bar -->
+  <header class="app-header">
+    <div class="header-content">
+      <div class="brand">
+        <span class="brand-icon">🦑</span>
+        <div>
+          <h1 class="brand-title">ระบบสต๊อกปลาหมึก</h1>
+          <p class="brand-subtitle" id="connectionStatus">● ออฟไลน์ / โหมดทดลอง</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btnRefresh" class="icon-btn" title="รีเฟรชข้อมูล">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+        <button id="btnSettings" class="icon-btn" title="ตั้งค่าเชื่อมต่อ Google Sheet">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-content">
+
+    <!-- ================= TAB 1: รับเข้า (Stock In) ================= -->
+    <section id="tab-stockin" class="tab-panel active">
+      <!-- Summary Box -->
+      <div class="summary-card in-theme">
+        <div class="summary-header">
+          <span class="badge in-badge">สรุปการรับเข้า</span>
+          <span class="period-text" id="inFilterLabel">วันนี้</span>
+        </div>
+        <div class="summary-grid">
+          <div class="stat-box">
+            <span class="stat-label">น้ำหนักรวม</span>
+            <span class="stat-value" id="inTotalWeight">0.0 <small>กก.</small></span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">ยอดจ่ายรวม</span>
+            <span class="stat-value text-danger" id="inTotalCost">฿0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">จำนวนบิล</span>
+            <span class="stat-value" id="inTotalCount">0 <small>รายการ</small></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="filter-toolbar">
+        <div class="search-box">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="inSearchSupplier" placeholder="ค้นหาชื่อซัพพลายเออร์...">
+          <button id="inClearSearch" class="clear-btn">&times;</button>
+        </div>
+        <div class="chip-filters" id="inDateFilters">
+          <button class="chip active" data-range="today">วันนี้</button>
+          <button class="chip" data-range="week">อาทิตย์นี้</button>
+          <button class="chip" data-range="month">เดือนนี้</button>
+          <button class="chip" data-range="year">ปีนี้</button>
+          <button class="chip" data-range="all">ทั้งหมด</button>
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <div class="action-bar">
+        <span class="section-title">ประวัติรับเข้าล่าสุด</span>
+        <button id="btnOpenAddIn" class="btn btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          บันทึกรับเข้า
+        </button>
+      </div>
+
+      <!-- List of Stock In Transactions -->
+      <div id="inListContainer" class="card-list">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- ================= TAB 2: ขายออก (Stock Out) ================= -->
+    <section id="tab-stockout" class="tab-panel">
+      <!-- Summary Box -->
+      <div class="summary-card out-theme">
+        <div class="summary-header">
+          <span class="badge out-badge">สรุปการขายออก</span>
+          <span class="period-text" id="outFilterLabel">วันนี้</span>
+        </div>
+        <div class="summary-grid">
+          <div class="stat-box">
+            <span class="stat-label">น้ำหนักขาย</span>
+            <span class="stat-value" id="outTotalWeight">0.0 <small>กก.</small></span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">ยอดขายรวม</span>
+            <span class="stat-value text-success" id="outTotalAmount">฿0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">รอชำระ</span>
+            <span class="stat-value text-warning" id="outUnpaidAmount">฿0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="filter-toolbar">
+        <div class="search-box">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="outSearchCustomer" placeholder="ค้นหาชื่อลูกค้า...">
+          <button id="outClearSearch" class="clear-btn">&times;</button>
+        </div>
+        <div class="chip-filters" id="outDateFilters">
+          <button class="chip active" data-range="today">วันนี้</button>
+          <button class="chip" data-range="week">อาทิตย์นี้</button>
+          <button class="chip" data-range="month">เดือนนี้</button>
+          <button class="chip" data-range="year">ปีนี้</button>
+          <button class="chip" data-range="all">ทั้งหมด</button>
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <div class="action-bar">
+        <span class="section-title">ประวัติการขาย</span>
+        <button id="btnOpenAddOut" class="btn btn-success">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          บันทึกขายออก
+        </button>
+      </div>
+
+      <!-- List of Stock Out Transactions -->
+      <div id="outListContainer" class="card-list">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- ================= TAB 3: แดชบอร์ด (Dashboard) ================= -->
+    <section id="tab-dashboard" class="tab-panel">
+      
+      <!-- Current Stock Status -->
+      <div class="dashboard-section">
+        <div class="dash-header">
+          <h2 class="dash-title">🦑 สต๊อกคงเหลือปัจจุบัน</h2>
+          <span class="badge in-badge">คำนวณอัตโนมัติ</span>
+        </div>
+        <div class="stock-cards-grid">
+          <div class="stock-item-card" data-product="หมึกหอม">
+            <div class="stock-item-top">
+              <span class="stock-icon">🦑</span>
+              <span class="stock-name">หมึกหอม</span>
+            </div>
+            <div class="stock-qty" id="dashStockHom">0.0 <small>กก.</small></div>
+            <div class="stock-subtext">รับ: <span id="dashInHom">0</span> | ขาย: <span id="dashOutHom">0</span></div>
+          </div>
+          <div class="stock-item-card" data-product="หมึกกระดอง">
+            <div class="stock-item-top">
+              <span class="stock-icon">🐙</span>
+              <span class="stock-name">หมึกกระดอง</span>
+            </div>
+            <div class="stock-qty" id="dashStockKradong">0.0 <small>กก.</small></div>
+            <div class="stock-subtext">รับ: <span id="dashInKradong">0</span> | ขาย: <span id="dashOutKradong">0</span></div>
+          </div>
+          <div class="stock-item-card" data-product="หมึกกล้วย">
+            <div class="stock-item-top">
+              <span class="stock-icon">🦑</span>
+              <span class="stock-name">หมึกกล้วย</span>
+            </div>
+            <div class="stock-qty" id="dashStockKluay">0.0 <small>กก.</small></div>
+            <div class="stock-subtext">รับ: <span id="dashInKluay">0</span> | ขาย: <span id="dashOutKluay">0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Month Financial Highlights -->
+      <div class="dashboard-section">
+        <div class="dash-header">
+          <h2 class="dash-title">📊 สรุปการเงินเดือนนี้</h2>
+          <span class="period-text" id="dashCurrentMonthLabel">วันที่ 1 ถึงปัจจุบัน</span>
+        </div>
+        <div class="financial-grid">
+          <div class="fin-card expense">
+            <div class="fin-icon">💸</div>
+            <div>
+              <div class="fin-label">ค่าใช้จ่ายรับเข้าเดือนนี้</div>
+              <div class="fin-val" id="dashMonthExpense">฿0</div>
+            </div>
+          </div>
+          <div class="fin-card profit">
+            <div class="fin-icon">💰</div>
+            <div>
+              <div class="fin-label">กำไรเดือนนี้ (เฉพาะที่ชำระแล้ว)</div>
+              <div class="fin-val" id="dashMonthProfit">฿0</div>
+              <small class="fin-hint">(ยอดขายที่ชำระแล้ว - ต้นทุนรับเข้าเดือนนี้)</small>
+            </div>
+          </div>
+          <div class="fin-card revenue">
+            <div class="fin-icon">📈</div>
+            <div>
+              <div class="fin-label">ยอดขายชำระแล้วเดือนนี้</div>
+              <div class="fin-val" id="dashMonthPaidRevenue">฿0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unpaid Customers Overview -->
+      <div class="dashboard-section">
+        <div class="dash-header">
+          <h2 class="dash-title">⚠️ ลูกค้าที่ยังไม่ชำระ</h2>
+          <span class="badge warning-badge" id="dashUnpaidSummaryBadge">0 รายการ</span>
+        </div>
+        <div id="dashUnpaidList" class="unpaid-list">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ================= MODAL: เพิ่มรับเข้า ================= -->
+  <div class="modal-overlay" id="modalAddIn">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">📥 บันทึกรับเข้าปลาหมึก</h3>
+        <button class="modal-close" data-close="modalAddIn">&times;</button>
+      </div>
+      <form id="formAddIn" class="modal-body">
+        
+        <div class="form-group">
+          <label>ซัพพลายเออร์ / ร้านส่ง <span class="required">*</span></label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="inSupplierInput" list="supplierList" placeholder="พิมพ์ชื่อเพื่อค้นหาหรือพิมพ์ใหม่..." required autocomplete="off">
+            <datalist id="supplierList">
+              <!-- Dynamically populated -->
+            </datalist>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>รายการสินค้า <span class="required">*</span></label>
+          <select id="inProductSelect" required>
+            <option value="หมึกหอม">🦑 หมึกหอม</option>
+            <option value="หมึกกระดอง">🐙 หมึกกระดอง</option>
+            <option value="หมึกกล้วย">🦑 หมึกกล้วย</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>จำนวน (กก.) <span class="required">*</span></label>
+            <input type="number" id="inWeightInput" step="0.01" min="0.1" placeholder="0.00" required>
+          </div>
+          <div class="form-group">
+            <label>ราคาต่อ กก. (บาท) <span class="required">*</span></label>
+            <input type="number" id="inPriceInput" step="0.5" min="0" placeholder="0.00" required>
+          </div>
+        </div>
+
+        <div class="total-calc-box">
+          <span>รวมเป็นเงินทั้งสิ้น:</span>
+          <strong id="inCalcTotal">฿0.00</strong>
+        </div>
+
+        <div class="form-group">
+          <label>หมายเหตุ (ถ้ามี)</label>
+          <input type="text" id="inNoteInput" placeholder="เช่น ขนาดตัว, แพ็คเกจ">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modalAddIn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitIn">บันทึกรับเข้า</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: เพิ่มขายออก ================= -->
+  <div class="modal-overlay" id="modalAddOut">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">📤 บันทึกขายออกปลาหมึก</h3>
+        <button class="modal-close" data-close="modalAddOut">&times;</button>
+      </div>
+      <form id="formAddOut" class="modal-body">
+        
+        <div class="form-group">
+          <label>ชื่อลูกค้า <span class="required">*</span></label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="outCustomerInput" list="customerList" placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา..." required autocomplete="off">
+            <datalist id="customerList">
+              <!-- Dynamically populated -->
+            </datalist>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>เบอร์โทร</label>
+            <input type="tel" id="outCustomerPhone" placeholder="08x-xxx-xxxx">
+          </div>
+          <div class="form-group">
+            <label>ที่อยู่ / โต๊ะ / จัดส่ง</label>
+            <input type="text" id="outCustomerAddress" placeholder="ที่อยู่จัดส่ง">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>รายการสินค้า <span class="required">*</span></label>
+          <select id="outProductSelect" required>
+            <option value="หมึกหอม">🦑 หมึกหอม</option>
+            <option value="หมึกกระดอง">🐙 หมึกกระดอง</option>
+            <option value="หมึกกล้วย">🦑 หมึกกล้วย</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>จำนวน (กก.) <span class="required">*</span></label>
+            <input type="number" id="outWeightInput" step="0.01" min="0.1" placeholder="0.00" required>
+          </div>
+          <div class="form-group">
+            <label>ราคาขายต่อ กก. (บาท) <span class="required">*</span></label>
+            <input type="number" id="outPriceInput" step="0.5" min="0" placeholder="0.00" required>
+          </div>
+        </div>
+
+        <div class="total-calc-box">
+          <span>ยอดขายรวม:</span>
+          <strong id="outCalcTotal" class="text-success">฿0.00</strong>
+        </div>
+
+        <div class="status-default-notice">
+          ℹ️ สถานะเริ่มต้นบันทึกเป็น: <span class="badge warning-badge">รอชำระ</span>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modalAddOut">ยกเลิก</button>
+          <button type="submit" class="btn btn-success" id="btnSubmitOut">บันทึกขายออก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: รายละเอียดซัพพลายเออร์ (Supplier Detail) ================= -->
+  <div class="modal-overlay" id="modalSupplierDetail">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="supDetailTitle">รายละเอียดซัพพลายเออร์</h3>
+        <button class="modal-close" data-close="modalSupplierDetail">&times;</button>
+      </div>
+      <div class="modal-body" id="supDetailContent">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-close="modalSupplierDetail">ปิด</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: รายละเอียดบิลขาย & ปรับสถานะ ================= -->
+  <div class="modal-overlay" id="modalSaleDetail">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">รายละเอียดการขาย</h3>
+        <button class="modal-close" data-close="modalSaleDetail">&times;</button>
+      </div>
+      <div class="modal-body" id="saleDetailContent">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="modal-footer" id="saleDetailActions">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: ตั้งค่า Google Sheet ================= -->
+  <div class="modal-overlay" id="modalSettings">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ ตั้งค่าเชื่อมต่อ Google Sheet</h3>
+        <button class="modal-close" data-close="modalSettings">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="settings-desc">ใส่ Google Apps Script Web App URL เพื่อซิงค์ข้อมูลกับ Google Sheet ของคุณ</p>
+        
+        <div class="form-group">
+          <label>Apps Script Web App URL:</label>
+          <input type="url" id="settingApiUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+
+        <div class="demo-switch-box">
+          <label class="switch-container">
+            <input type="checkbox" id="settingUseDemo">
+            <span class="switch-slider"></span>
+          </label>
+          <span>ใช้ข้อมูลทดลอง (Demo Mode) เมื่อยังไม่ได้เชื่อมต่อ Sheet</span>
+        </div>
+
+        <div class="guide-box">
+          <h4>💡 วิธีเชื่อมต่อกับ Google Sheet:</h4>
+          <ol>
+            <li>สร้าง Google Sheet ใหม่ 1 ไฟล์</li>
+            <li>ไปที่ Extensions (ส่วนขยาย) > Apps Script</li>
+            <li>วางโค้ดจากไฟล์ <code>Code.gs</code> แล้วกดบันทึก 💾</li>
+            <li>เลือกฟังก์ชัน <strong>setupSheets</strong> แล้วกด <strong>Run (เรียกใช้)</strong> (โค้ดจะสร้างชีตและหัวตารางให้ทันที)</li>
+            <li>กด Deploy (การทำให้ใช้งานได้) > New deployment</li>
+            <li>เลือกประเภท Web app, เข้าถึงได้โดย: <strong>Anyone (ทุกคน)</strong></li>
+            <li>คัดลอก Web App URL มาใส่ในช่องด้านบนนี้</li>
+          </ol>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" id="btnResetDemo">ล้างข้อมูลตัวอย่าง</button>
+        <button type="button" class="btn btn-primary" id="btnSaveSettings">บันทึกการตั้งค่า</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FIXED BOTTOM NAVIGATION ================= -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-tab="tab-stockin">
+      <div class="nav-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/><path d="M20 21H4"/></svg>
+      </div>
+      <span class="nav-label">รับเข้า</span>
+    </button>
+    
+    <button class="nav-item" data-tab="tab-stockout">
+      <div class="nav-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 14l-5-5-5 5"/><path d="M12 9v12"/><path d="M4 3h16"/></svg>
+      </div>
+      <span class="nav-label">ขายออก</span>
+    </button>
+    
+    <button class="nav-item" data-tab="tab-dashboard">
+      <div class="nav-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+      </div>
+      <span class="nav-label">แดชบอร์ด</span>
+    </button>
+  </nav>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
