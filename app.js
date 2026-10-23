@@ -3,14 +3,13 @@
  * High-performance, offline-first client application
  */
 
-// ⭐ ใส่ Google Apps Script Web App URL ที่นี่ (หรือจะใส่ผ่านปุ่มตั้งค่า ⚙️ บนหน้าเว็บก็ได้)
+// ⭐ นำ Web App URL ที่ได้จาก Google Apps Script มาใส่ในเครื่องหมายคำพูดด้านล่างนี้
 // เช่น: const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby_KIXPbaAikCBEW9CEmV6vPSnYQApZY_N0IBalSFP3PB1iyEoDvgjXXVFsPgEWQERE6w/exec';
 
 // ================= APP STATE =================
 const STATE = {
-  apiUrl: localStorage.getItem('squid_api_url') || DEFAULT_WEB_APP_URL || '',
-  useDemo: localStorage.getItem('squid_use_demo') !== 'false',
+  apiUrl: DEFAULT_WEB_APP_URL || localStorage.getItem('squid_api_url') || '',
   currentTab: 'tab-stockin',
   inFilterRange: 'today',
   outFilterRange: 'today',
@@ -27,45 +26,16 @@ const STATE = {
   }
 };
 
-// ================= SAMPLE / DEMO DATA =================
-function getInitialDemoData() {
-  const now = new Date();
-  const todayStr = (offsetDays = 0, hour = 9, min = 0) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - offsetDays);
-    d.setHours(hour, min, 0, 0);
-    return d.toISOString();
-  };
-
-  return {
-    stockIn: [
-      { id: 'IN-001', timestamp: todayStr(0, 7, 30), supplier: 'ไต๋ดำ มหาชัย', product: 'หมึกหอม', weight: 45.5, price: 210, total: 9555, note: 'ตัวใหญ่ สดมาก' },
-      { id: 'IN-002', timestamp: todayStr(0, 8, 15), supplier: 'ไต๋ดำ มหาชัย', product: 'หมึกกล้วย', weight: 60.0, price: 140, total: 8400, note: 'คัดไซส์' },
-      { id: 'IN-003', timestamp: todayStr(1, 6, 45), supplier: 'เจ๊พร แพปลาปราณบุรี', product: 'หมึกกระดอง', weight: 80.0, price: 170, total: 13600, note: 'สดจากเรือได' },
-      { id: 'IN-004', timestamp: todayStr(3, 8, 0), supplier: 'ลุงเปี๊ยก สัตหีบ', product: 'หมึกหอม', weight: 50.0, price: 215, total: 10750, note: '' }
-    ],
-    stockOut: [
-      { id: 'OUT-001', timestamp: todayStr(0, 10, 30), customer: 'ร้านอาหารริมเล', phone: '081-234-5678', address: 'ซอย 5 หน้าร้าน', product: 'หมึกหอม', weight: 15.0, price: 270, total: 4050, status: 'รอชำระ', paidAt: null },
-      { id: 'OUT-002', timestamp: todayStr(0, 11, 40), customer: 'เจ๊หมวย ข้าวต้มปลา', phone: '089-876-5432', address: 'ตลาดสดเทศบาล', product: 'หมึกกล้วย', weight: 20.0, price: 180, total: 3600, status: 'ชำระเงินแล้ว', paidAt: todayStr(0, 12, 0) },
-      { id: 'OUT-003', timestamp: todayStr(1, 14, 20), customer: 'ครัวคุณต๋อย ซีฟู้ด', phone: '086-555-1234', address: 'ริมหาดชะอำ', product: 'หมึกกระดอง', weight: 30.0, price: 220, total: 6600, status: 'รอชำระ', paidAt: null },
-      { id: 'OUT-004', timestamp: todayStr(2, 16, 0), customer: 'ร้านอาหารริมเล', phone: '081-234-5678', address: 'ซอย 5 หน้าร้าน', product: 'หมึกหอม', weight: 10.0, price: 270, total: 2700, status: 'ชำระเงินแล้ว', paidAt: todayStr(2, 17, 30) }
-    ],
-    customers: {
-      'ร้านอาหารริมเล': { phone: '081-234-5678', address: 'ซอย 5 หน้าร้าน' },
-      'เจ๊หมวย ข้าวต้มปลา': { phone: '089-876-5432', address: 'ตลาดสดเทศบาล' },
-      'ครัวคุณต๋อย ซีฟู้ด': { phone: '086-555-1234', address: 'ริมหาดชะอำ' }
-    },
-    suppliers: {
-      'ไต๋ดำ มหาชัย': { phone: '082-111-2222', address: 'ท่าเทียบเรือมหาชัย' },
-      'เจ๊พร แพปลาปราณบุรี': { phone: '084-333-4444', address: 'ปากน้ำปราณ' },
-      'ลุงเปี๊ยก สัตหีบ': { phone: '085-555-6666', address: 'ท่าเรือสัตหีบ' }
-    }
-  };
-}
-
 // ================= STORAGE HELPERS =================
+// เริ่มต้นด้วยข้อมูลว่างเปล่า (ไม่มีข้อมูลตัวอย่าง)
 function loadLocalData() {
-  const cached = localStorage.getItem('squid_data_v1');
+  // ลบข้อมูลตัวอย่างเก่า (ถ้าเคยมีค้างในเครื่อง)
+  if (localStorage.getItem('squid_data_v1')) {
+    localStorage.removeItem('squid_data_v1');
+    localStorage.removeItem('squid_use_demo');
+  }
+
+  const cached = localStorage.getItem('squid_data_clean');
   if (cached) {
     try {
       const data = JSON.parse(cached);
@@ -79,17 +49,15 @@ function loadLocalData() {
     }
   }
 
-  // Fallback to demo data
-  const demo = getInitialDemoData();
-  STATE.stockIn = demo.stockIn;
-  STATE.stockOut = demo.stockOut;
-  STATE.customers = demo.customers;
-  STATE.suppliers = demo.suppliers;
-  saveLocalData();
+  // เริ่มต้นว่างเปล่า 100%
+  STATE.stockIn = [];
+  STATE.stockOut = [];
+  STATE.customers = {};
+  STATE.suppliers = {};
 }
 
 function saveLocalData() {
-  localStorage.setItem('squid_data_v1', JSON.stringify({
+  localStorage.setItem('squid_data_clean', JSON.stringify({
     stockIn: STATE.stockIn,
     stockOut: STATE.stockOut,
     customers: STATE.customers,
@@ -121,8 +89,8 @@ function getFilterRangeBounds(rangeType) {
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
   } else if (rangeType === 'week') {
-    // Week calculation: Monday to Sunday (ตามที่ผู้ใช้กำหนด: นับวันจันทร์-อาทิตย์)
-    const day = now.getDay(); // 0 is Sun, 1 is Mon...
+    // นับวันจันทร์-อาทิตย์
+    const day = now.getDay();
     const diffToMon = (day === 0 ? -6 : 1) - day;
     start.setDate(now.getDate() + diffToMon);
     start.setHours(0, 0, 0, 0);
@@ -141,7 +109,6 @@ function getFilterRangeBounds(rangeType) {
     end.setMonth(11, 31);
     end.setHours(23, 59, 59, 999);
   } else {
-    // 'all'
     return { start: new Date(0), end: new Date(2100, 0, 1) };
   }
 
@@ -166,6 +133,7 @@ function formatWeight(num) {
 // ================= UI NOTIFICATIONS =================
 function showToast(msg) {
   const toast = document.getElementById('toast');
+  if (!toast) return;
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2600);
@@ -188,7 +156,6 @@ function initNavigation() {
       document.getElementById(targetTab).classList.add('active');
       STATE.currentTab = targetTab;
 
-      // Refresh view when switching tabs
       renderCurrentTab();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -197,7 +164,6 @@ function initNavigation() {
 
 // ================= TAB 1: รับเข้า (Stock In) =================
 function initStockInEvents() {
-  // Search input
   const searchInput = document.getElementById('inSearchSupplier');
   const clearBtn = document.getElementById('inClearSearch');
 
@@ -214,7 +180,6 @@ function initStockInEvents() {
     renderStockInList();
   });
 
-  // Date filters
   const dateChips = document.querySelectorAll('#inDateFilters .chip');
   dateChips.forEach(chip => {
     chip.addEventListener('click', () => {
@@ -235,7 +200,6 @@ function initStockInEvents() {
     setTimeout(() => document.getElementById('inSupplierInput').focus(), 150);
   });
 
-  // Auto total calculation on input
   const weightInput = document.getElementById('inWeightInput');
   const priceInput = document.getElementById('inPriceInput');
   const totalDisplay = document.getElementById('inCalcTotal');
@@ -249,7 +213,7 @@ function initStockInEvents() {
   weightInput.addEventListener('input', calcTotal);
   priceInput.addEventListener('input', calcTotal);
 
-  // Form Submit
+  // Form Submit: ใส่ชื่อซัพใหม่ได้ทันที หรือเลือกจากที่มีอยู่
   document.getElementById('formAddIn').addEventListener('submit', async (e) => {
     e.preventDefault();
     const supplier = document.getElementById('inSupplierInput').value.trim();
@@ -275,18 +239,18 @@ function initStockInEvents() {
       note
     };
 
-    // Save locally
+    // บันทึกซัพพลายเออร์ใหม่ลงในรายการอัตโนมัติ
     STATE.stockIn.unshift(newRecord);
     if (!STATE.suppliers[supplier]) {
       STATE.suppliers[supplier] = { name: supplier };
     }
     saveLocalData();
+    populateSupplierDatalist();
 
-    // Sync API in background
     syncStockInToApi(newRecord);
 
     closeModal('modalAddIn');
-    showToast(`บันทึกรับเข้า ${product} สำเร็จ!`);
+    showToast(`บันทึกรับเข้า ${product} เรียบร้อย!`);
     renderStockInList();
     renderDashboard();
   });
@@ -300,7 +264,6 @@ function renderStockInList() {
     return matchRange && matchSearch;
   });
 
-  // Update Summary Box
   let totalWeight = 0;
   let totalCost = 0;
   filtered.forEach(item => {
@@ -312,12 +275,11 @@ function renderStockInList() {
   document.getElementById('inTotalCost').textContent = formatCurrency(totalCost);
   document.getElementById('inTotalCount').innerHTML = `${filtered.length} <small>รายการ</small>`;
 
-  // Render cards
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📥</div>
-        <p>ไม่พบรายการรับเข้าในช่วงเวลาหรือคำค้นหานี้</p>
+        <p>ยังไม่มีรายการรับเข้าในช่วงเวลานี้</p>
       </div>`;
     return;
   }
@@ -417,7 +379,6 @@ function initStockOutEvents() {
     renderStockOutList();
   });
 
-  // Date filters
   const dateChips = document.querySelectorAll('#outDateFilters .chip');
   dateChips.forEach(chip => {
     chip.addEventListener('click', () => {
@@ -429,18 +390,23 @@ function initStockOutEvents() {
     });
   });
 
-  // Auto fill Customer Phone & Address when customer selected
+  // ⭐ การดึงข้อมูลลูกค้า: หากมีข้อมูลเดิม ให้ดึงมาแสดงอัตโนมัติ / หากยังไม่มี ให้กรอกข้อมูลใหม่ได้เลย
   const custInput = document.getElementById('outCustomerInput');
-  custInput.addEventListener('input', () => {
+  const phoneInput = document.getElementById('outCustomerPhone');
+  const addressInput = document.getElementById('outCustomerAddress');
+
+  const checkAndFillCustomer = () => {
     const name = custInput.value.trim();
     if (STATE.customers[name]) {
       const c = STATE.customers[name];
-      if (c.phone) document.getElementById('outCustomerPhone').value = c.phone;
-      if (c.address) document.getElementById('outCustomerAddress').value = c.address;
+      if (c.phone) phoneInput.value = c.phone;
+      if (c.address) addressInput.value = c.address;
     }
-  });
+  };
 
-  // Suggest default selling price based on selected squid
+  custInput.addEventListener('input', checkAndFillCustomer);
+  custInput.addEventListener('change', checkAndFillCustomer);
+
   const productSelect = document.getElementById('outProductSelect');
   const priceInput = document.getElementById('outPriceInput');
   const weightInput = document.getElementById('outWeightInput');
@@ -473,12 +439,12 @@ function initStockOutEvents() {
     setTimeout(() => document.getElementById('outCustomerInput').focus(), 150);
   });
 
-  // Submit Stock Out
+  // Submit Stock Out: รองรับทั้งลูกค้าเก่าและเพิ่มลูกค้าใหม่ทันที
   document.getElementById('formAddOut').addEventListener('submit', async (e) => {
     e.preventDefault();
     const customer = custInput.value.trim();
-    const phone = document.getElementById('outCustomerPhone').value.trim();
-    const address = document.getElementById('outCustomerAddress').value.trim();
+    const phone = phoneInput.value.trim();
+    const address = addressInput.value.trim();
     const product = productSelect.value;
     const weight = parseFloat(weightInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
@@ -503,16 +469,16 @@ function initStockOutEvents() {
       paidAt: null
     };
 
-    // Save locally
     STATE.stockOut.unshift(newRecord);
+    // บันทึก/อัปเดตข้อมูลลูกค้าลงฐานข้อมูล เพื่อให้ดึงมาใช้ได้ในครั้งถัดไป
     STATE.customers[customer] = { phone, address };
     saveLocalData();
+    populateCustomerDatalist();
 
-    // Sync API in background
     syncStockOutToApi(newRecord);
 
     closeModal('modalAddOut');
-    showToast(`บันทึกขายให้ ${customer} เรียบร้อย (รอชำระ)`);
+    showToast(`บันทึกขายให้ "${customer}" เรียบร้อย (รอชำระ)`);
     renderStockOutList();
     renderDashboard();
   });
@@ -526,7 +492,6 @@ function renderStockOutList() {
     return matchRange && matchSearch;
   });
 
-  // Summary box calculations
   let totalWeight = 0;
   let totalAmount = 0;
   let unpaidAmount = 0;
@@ -543,12 +508,11 @@ function renderStockOutList() {
   document.getElementById('outTotalAmount').textContent = formatCurrency(totalAmount);
   document.getElementById('outUnpaidAmount').textContent = formatCurrency(unpaidAmount);
 
-  // Render cards
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📤</div>
-        <p>ไม่พบรายการขายในช่วงเวลาหรือคำค้นหานี้</p>
+        <p>ยังไม่มีรายการขายในช่วงเวลานี้</p>
       </div>`;
     return;
   }
@@ -635,7 +599,7 @@ function openSaleDetail(saleId) {
     actions.innerHTML = `
       <button type="button" class="btn btn-outline" data-close="modalSaleDetail">ปิด</button>
       <button type="button" class="btn btn-success" onclick="updatePaymentStatus('${item.id}', 'ชำระเงินแล้ว')">
-        ✓ เปลี่ยนเป็นชำระเงินแล้ว
+        ✓ ปรับเป็นชำระเงินแล้ว
       </button>
     `;
   } else {
@@ -658,7 +622,6 @@ function updatePaymentStatus(saleId, newStatus) {
   item.paidAt = newStatus === 'ชำระเงินแล้ว' ? new Date().toISOString() : null;
   saveLocalData();
 
-  // Sync to API
   syncStatusToApi(saleId, newStatus);
 
   closeModal('modalSaleDetail');
@@ -669,7 +632,7 @@ function updatePaymentStatus(saleId, newStatus) {
 
 // ================= TAB 3: แดชบอร์ด (Dashboard) =================
 function renderDashboard() {
-  // 1. Current Stock Calculation (All time In minus All time Out)
+  // 1. คำนวณสต๊อกคงเหลือปัจจุบัน (รับเข้าทั้งหมด - ขายออกทั้งหมด)
   const stockMap = {
     'หมึกหอม': { in: 0, out: 0 },
     'หมึกกระดอง': { in: 0, out: 0 },
@@ -688,7 +651,6 @@ function renderDashboard() {
     }
   });
 
-  // Render Squid Stocks
   const homRemain = stockMap['หมึกหอม'].in - stockMap['หมึกหอม'].out;
   const kradongRemain = stockMap['หมึกกระดอง'].in - stockMap['หมึกกระดอง'].out;
   const kluayRemain = stockMap['หมึกกล้วย'].in - stockMap['หมึกกล้วย'].out;
@@ -705,7 +667,7 @@ function renderDashboard() {
   document.getElementById('dashInKluay').textContent = formatWeight(stockMap['หมึกกล้วย'].in);
   document.getElementById('dashOutKluay').textContent = formatWeight(stockMap['หมึกกล้วย'].out);
 
-  // 2. Month Financials: นับตั้งแต่วันที่ 1 ของเดือนปัจจุบัน
+  // 2. สรุปการเงินเดือนนี้ (นับตั้งแต่วันที่ 1 ของเดือน)
   const { start: monthStart, end: monthEnd } = getFilterRangeBounds('month');
   
   let monthExpense = 0;
@@ -733,7 +695,7 @@ function renderDashboard() {
   profitEl.textContent = formatCurrency(monthProfit);
   profitEl.className = 'fin-val ' + (monthProfit >= 0 ? 'text-success' : 'text-danger');
 
-  // 3. Unpaid Customers List
+  // 3. รายการลูกค้าที่ยังไม่ชำระ
   const unpaidListEl = document.getElementById('dashUnpaidList');
   const unpaidRecords = STATE.stockOut.filter(r => r.status === 'รอชำระ');
   
@@ -741,8 +703,8 @@ function renderDashboard() {
 
   if (unpaidRecords.length === 0) {
     unpaidListEl.innerHTML = `
-      <div style="text-align:center; padding: 20px; color:var(--success); font-size:0.9rem;">
-        🎉 ยอดเยี่ยม! ไม่มีรายการค้างชำระในขณะนี้
+      <div style="text-align:center; padding: 20px; color:var(--text-muted); font-size:0.9rem;">
+        🎉 ไม่มีรายการค้างชำระ
       </div>`;
     return;
   }
@@ -782,15 +744,18 @@ function initModals() {
 }
 
 function openModal(modalId) {
-  document.getElementById(modalId).classList.add('open');
+  const m = document.getElementById(modalId);
+  if (m) m.classList.add('open');
 }
 
 function closeModal(modalId) {
-  document.getElementById(modalId).classList.remove('open');
+  const m = document.getElementById(modalId);
+  if (m) m.classList.remove('open');
 }
 
 function populateSupplierDatalist() {
   const datalist = document.getElementById('supplierList');
+  if (!datalist) return;
   const uniqueNames = new Set(Object.keys(STATE.suppliers));
   STATE.stockIn.forEach(r => uniqueNames.add(r.supplier));
   
@@ -801,6 +766,7 @@ function populateSupplierDatalist() {
 
 function populateCustomerDatalist() {
   const datalist = document.getElementById('customerList');
+  if (!datalist) return;
   const uniqueNames = new Set(Object.keys(STATE.customers));
   STATE.stockOut.forEach(r => uniqueNames.add(r.customer));
 
@@ -809,59 +775,29 @@ function populateCustomerDatalist() {
   ).join('');
 }
 
-// ================= SETTINGS & GOOGLE SHEET SYNC =================
-function initSettings() {
-  const modal = 'modalSettings';
-  const urlInput = document.getElementById('settingApiUrl');
-  const demoSwitch = document.getElementById('settingUseDemo');
-
-  document.getElementById('btnSettings').addEventListener('click', () => {
-    urlInput.value = STATE.apiUrl;
-    demoSwitch.checked = STATE.useDemo;
-    openModal(modal);
-  });
-
-  document.getElementById('btnSaveSettings').addEventListener('click', () => {
-    STATE.apiUrl = urlInput.value.trim();
-    STATE.useDemo = demoSwitch.checked;
-    localStorage.setItem('squid_api_url', STATE.apiUrl);
-    localStorage.setItem('squid_use_demo', STATE.useDemo ? 'true' : 'false');
-    updateConnectionBadge();
-    closeModal(modal);
-    showToast('บันทึกการตั้งค่าแล้ว');
-    if (STATE.apiUrl) {
-      fetchDataFromGoogle();
-    }
-  });
-
-  document.getElementById('btnResetDemo').addEventListener('click', () => {
-    if (confirm('คุณต้องการรีเซ็ตข้อมูลตัวอย่างกลับเป็นค่าเริ่มต้นหรือไม่?')) {
-      localStorage.removeItem('squid_data_v1');
-      loadLocalData();
-      renderCurrentTab();
-      closeModal(modal);
-      showToast('รีเซ็ตข้อมูลตัวอย่างแล้ว');
-    }
-  });
-
-  document.getElementById('btnRefresh').addEventListener('click', () => {
-    if (STATE.apiUrl) {
-      fetchDataFromGoogle();
-    } else {
-      showToast('ข้อมูลอัปเดตล่าสุดแล้ว (โหมดออฟไลน์)');
-      renderCurrentTab();
-    }
-  });
+// ================= REFRESH & GOOGLE SHEET SYNC =================
+function initRefreshButton() {
+  const refreshBtn = document.getElementById('btnRefresh');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      if (STATE.apiUrl) {
+        fetchDataFromGoogle();
+      } else {
+        showToast('กรุณาระบุ Web App URL ใน app.js');
+      }
+    });
+  }
 }
 
 function updateConnectionBadge() {
   const badge = document.getElementById('connectionStatus');
+  if (!badge) return;
   if (STATE.apiUrl) {
-    badge.textContent = '🟢 เชื่อมต่อ Google Sheet แล้ว';
+    badge.textContent = '🟢 พร้อมใช้งาน (Google Sheet)';
     badge.style.color = '#10b981';
   } else {
-    badge.textContent = '● โหมดทดลอง (ออฟไลน์)';
-    badge.style.color = 'var(--text-muted)';
+    badge.textContent = '⚠️ ใส่ Web App URL ใน app.js';
+    badge.style.color = '#f59e0b';
   }
 }
 
@@ -869,29 +805,35 @@ function updateConnectionBadge() {
 async function fetchDataFromGoogle() {
   if (!STATE.apiUrl) return;
   const badge = document.getElementById('connectionStatus');
-  badge.textContent = '🔄 กำลังดึงข้อมูล...';
+  if (badge) {
+    badge.textContent = '🔄 กำลังดึงข้อมูล...';
+    badge.style.color = 'var(--primary)';
+  }
 
   try {
     const res = await fetch(`${STATE.apiUrl}?action=getData&_=${Date.now()}`);
     const data = await res.json();
     if (data.status === 'success') {
-      if (Array.isArray(data.stockIn)) STATE.stockIn = data.stockIn;
-      if (Array.isArray(data.stockOut)) STATE.stockOut = data.stockOut;
-      if (data.customers) STATE.customers = data.customers;
-      if (data.suppliers) STATE.suppliers = data.suppliers;
+      STATE.stockIn = Array.isArray(data.stockIn) ? data.stockIn : [];
+      STATE.stockOut = Array.isArray(data.stockOut) ? data.stockOut : [];
+      STATE.customers = data.customers || {};
+      STATE.suppliers = data.suppliers || {};
       saveLocalData();
+      populateSupplierDatalist();
+      populateCustomerDatalist();
       renderCurrentTab();
-      badge.textContent = '🟢 เชื่อมต่อ Google Sheet แล้ว';
-      badge.style.color = '#10b981';
+      updateConnectionBadge();
       showToast('ดึงข้อมูลจาก Google Sheet สำเร็จ!');
     } else {
       throw new Error(data.message || 'Fetch failed');
     }
   } catch (err) {
     console.error('Fetch error:', err);
-    badge.textContent = '⚠️ ซิงค์ล้มเหลว (ใช้ข้อมูลในเครื่อง)';
-    badge.style.color = '#f59e0b';
-    showToast('ไม่สามารถดึงข้อมูลจาก Sheet ได้ กำลังใช้ข้อมูลในเครื่อง');
+    if (badge) {
+      badge.textContent = '⚠️ ไม่สามารถเชื่อมต่อ Sheet ได้';
+      badge.style.color = '#dc2626';
+    }
+    showToast('ดึงข้อมูลไม่สำเร็จ โปรดตรวจสอบ Web App URL');
   }
 }
 
@@ -900,7 +842,7 @@ async function syncStockInToApi(record) {
   try {
     await fetch(STATE.apiUrl, {
       method: 'POST',
-      mode: 'no-cors', // Standard Google Apps Script cross-origin invocation
+      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'addStockIn', record })
     });
@@ -965,15 +907,15 @@ window.addEventListener('DOMContentLoaded', () => {
   initModals();
   initStockInEvents();
   initStockOutEvents();
-  initSettings();
+  initRefreshButton();
   updateConnectionBadge();
 
-  // Initial render
+  // แสดงผลหน้าจอเริ่มต้น (ค่าว่างเปล่า 0 รายการ)
   renderStockInList();
   renderStockOutList();
   renderDashboard();
 
-  // If API URL is configured, pull latest data from Google Sheet
+  // ดึงข้อมูลจริงจาก Google Sheet ทันทีหากใส่ URL ไว้
   if (STATE.apiUrl) {
     fetchDataFromGoogle();
   }
