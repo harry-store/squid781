@@ -10,9 +10,11 @@ const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby_KIXPbaAi
 const STATE = {
   apiUrl: DEFAULT_WEB_APP_URL,
   currentTab: 'tab-stockin',
-  inFilterRange: 'today',
+  inFilterRange: 'all',        // รายการประวัติด้านล่างตั้งต้น: ทั้งหมด
+  inSummaryRange: 'today',      // บล็อคสรุปด้านบนตั้งต้น: วันนี้
   inCustomDate: '',
-  outFilterRange: 'today',
+  outFilterRange: 'all',       // รายการประวัติด้านล่างตั้งต้น: ทั้งหมด
+  outSummaryRange: 'today',     // บล็อคสรุปด้านบนตั้งต้น: วันนี้
   outCustomDate: '',
   dashFinRange: 'today',
   dashDailyRange: 'month',
@@ -214,7 +216,9 @@ function initStockInEvents() {
     chip.addEventListener('click', () => {
       dateChips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
-      STATE.inFilterRange = chip.getAttribute('data-range');
+      const range = chip.getAttribute('data-range');
+      STATE.inFilterRange = range;
+      STATE.inSummaryRange = range;
       STATE.inCustomDate = '';
       datePicker.value = '';
       datePicker.classList.remove('active');
@@ -229,6 +233,7 @@ function initStockInEvents() {
     if (val) {
       dateChips.forEach(c => c.classList.remove('active'));
       STATE.inFilterRange = 'custom';
+      STATE.inSummaryRange = 'custom';
       STATE.inCustomDate = val;
       datePicker.classList.add('active');
       document.getElementById('inFilterLabel').textContent = formatDateOnlyThai(val);
@@ -370,24 +375,28 @@ function renderStockInList() {
   const container = document.getElementById('inListContainer');
   const banner = document.getElementById('inSupplierSearchBanner');
 
-  // กรองข้อมูลตามเงื่อนไข วันที่ และ คำค้นหา
-  const filtered = STATE.stockIn.filter(item => {
-    const matchRange = isDateMatchFilter(item.timestamp, STATE.inFilterRange, STATE.inCustomDate);
-    const matchSearch = !STATE.inSearchQuery || (item.supplier && item.supplier.toLowerCase().includes(STATE.inSearchQuery));
-    return matchRange && matchSearch;
+  // 1. คำนวณบล็อคสรุปด้านบน (เริ่มต้นคือคำนวณของ "วันนี้")
+  const summaryItems = STATE.stockIn.filter(item => {
+    return isDateMatchFilter(item.timestamp, STATE.inSummaryRange, STATE.inCustomDate);
   });
 
-  // อัปเดตบล็อคสรุปด้านบน
   let totalWeight = 0;
   let totalCost = 0;
-  filtered.forEach(item => {
+  summaryItems.forEach(item => {
     totalWeight += Number(item.weight || 0);
     totalCost += Number(item.total || 0);
   });
 
   document.getElementById('inTotalWeight').innerHTML = `${formatWeight(totalWeight)} <small>กก.</small>`;
   document.getElementById('inTotalCost').textContent = formatCurrency(totalCost);
-  document.getElementById('inTotalCount').innerHTML = `${filtered.length} <small>รายการ</small>`;
+  document.getElementById('inTotalCount').innerHTML = `${summaryItems.length} <small>รายการ</small>`;
+
+  // 2. กรองรายการประวัติด้านล่าง (เริ่มต้นคือดึง "ทุกวันย้อนหลังทั้งหมด")
+  const filtered = STATE.stockIn.filter(item => {
+    const matchRange = isDateMatchFilter(item.timestamp, STATE.inFilterRange, STATE.inCustomDate);
+    const matchSearch = !STATE.inSearchQuery || (item.supplier && item.supplier.toLowerCase().includes(STATE.inSearchQuery));
+    return matchRange && matchSearch;
+  });
 
   // แบนเนอร์ค้นหาซัพพลายเออร์ตรง
   if (STATE.inSearchQuery) {
@@ -630,7 +639,9 @@ function initStockOutEvents() {
     chip.addEventListener('click', () => {
       dateChips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
-      STATE.outFilterRange = chip.getAttribute('data-range');
+      const range = chip.getAttribute('data-range');
+      STATE.outFilterRange = range;
+      STATE.outSummaryRange = range;
       STATE.outCustomDate = '';
       datePicker.value = '';
       datePicker.classList.remove('active');
@@ -644,6 +655,7 @@ function initStockOutEvents() {
     if (val) {
       dateChips.forEach(c => c.classList.remove('active'));
       STATE.outFilterRange = 'custom';
+      STATE.outSummaryRange = 'custom';
       STATE.outCustomDate = val;
       datePicker.classList.add('active');
       document.getElementById('outFilterLabel').textContent = formatDateOnlyThai(val);
@@ -814,17 +826,16 @@ function hideCustomerSuggestions() {
 function renderStockOutList() {
   const container = document.getElementById('outListContainer');
 
-  const filtered = STATE.stockOut.filter(item => {
-    const matchRange = isDateMatchFilter(item.timestamp, STATE.outFilterRange, STATE.outCustomDate);
-    const matchSearch = !STATE.outSearchQuery || (item.customer && item.customer.toLowerCase().includes(STATE.outSearchQuery));
-    return matchRange && matchSearch;
+  // 1. คำนวณบล็อคสรุปด้านบน (เริ่มต้นคือคำนวณของ "วันนี้")
+  const summaryItems = STATE.stockOut.filter(item => {
+    return isDateMatchFilter(item.timestamp, STATE.outSummaryRange, STATE.outCustomDate);
   });
 
   let totalWeight = 0;
   let totalAmount = 0;
   let unpaidAmount = 0;
 
-  filtered.forEach(item => {
+  summaryItems.forEach(item => {
     totalWeight += Number(item.weight || 0);
     totalAmount += Number(item.total || 0);
     if (item.status === 'รอชำระ') {
@@ -835,6 +846,13 @@ function renderStockOutList() {
   document.getElementById('outTotalWeight').innerHTML = `${formatWeight(totalWeight)} <small>กก.</small>`;
   document.getElementById('outTotalAmount').textContent = formatCurrency(totalAmount);
   document.getElementById('outUnpaidAmount').textContent = formatCurrency(unpaidAmount);
+
+  // 2. กรองรายการประวัติด้านล่าง (เริ่มต้นคือดึง "ทุกวันย้อนหลังทั้งหมด")
+  const filtered = STATE.stockOut.filter(item => {
+    const matchRange = isDateMatchFilter(item.timestamp, STATE.outFilterRange, STATE.outCustomDate);
+    const matchSearch = !STATE.outSearchQuery || (item.customer && item.customer.toLowerCase().includes(STATE.outSearchQuery));
+    return matchRange && matchSearch;
+  });
 
   if (filtered.length === 0) {
     container.innerHTML = `
