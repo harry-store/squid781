@@ -356,13 +356,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
 }
 
 .chip-filters {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  align-items: center;
   overflow-x: auto;
   padding-bottom: 2px;
   -ms-overflow-style: none;
@@ -375,17 +376,18 @@ body {
 }
 
 .chip {
-  padding: 7px 15px;
+  padding: 6px 12px;
   background-color: #f1f5f9;
   border: 1px solid transparent;
   color: var(--text-secondary);
   border-radius: 9999px;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
   font-family: inherit;
+  flex-shrink: 0;
 }
 
 .chip:hover {
@@ -399,25 +401,27 @@ body {
 }
 
 .chip-filters.sm .chip {
-  padding: 5px 12px;
+  padding: 5px 11px;
   font-size: 0.82rem;
 }
 
 .date-picker-wrap {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .date-picker-input {
-  padding: 6px 12px;
+  padding: 5px 8px;
   border: 1.5px solid var(--border);
   border-radius: 9999px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-family: inherit;
   color: var(--text-primary);
   background-color: #ffffff;
   outline: none;
   cursor: pointer;
+  max-width: 125px;
 }
 
 .date-picker-input:focus, .date-picker-input.active {
@@ -1216,16 +1220,18 @@ input:focus, select:focus, textarea:focus {
   }
   
   .filter-row-wrap {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 6px;
   }
 
   .date-picker-wrap {
-    width: 100%;
+    flex-shrink: 0;
   }
 
   .date-picker-input {
-    width: 100%;
+    max-width: 115px;
+    padding: 5px 6px;
+    font-size: 0.78rem;
   }
 
   .daily-summary-item {
@@ -1234,6 +1240,10 @@ input:focus, select:focus, textarea:focus {
   }
 
   .flex-column-sm {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
     flex-direction: column;
     align-items: flex-start;
   }
