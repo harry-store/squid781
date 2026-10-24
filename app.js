@@ -11,7 +11,12 @@ const STATE = {
   apiUrl: DEFAULT_WEB_APP_URL,
   currentTab: 'tab-stockin',
   inFilterRange: 'today',
+  inCustomDate: '',
   outFilterRange: 'today',
+  outCustomDate: '',
+  dashFinRange: 'today',
+  dashDailyRange: 'month',
+  dashDailyCustomDate: '',
   inSearchQuery: '',
   outSearchQuery: '',
   stockIn: [],
@@ -27,11 +32,7 @@ const STATE = {
 
 // ================= STORAGE HELPERS =================
 function loadLocalData() {
-  // ล้างข้อมูลเก่าหรือข้อมูลทดสอบที่เคยค้างในเบราว์เซอร์
-  localStorage.removeItem('squid_data_v1');
-  localStorage.removeItem('squid_use_demo');
-
-  const cached = localStorage.getItem('squid_data_v2');
+  const cached = localStorage.getItem('squid_data_v3');
   if (cached) {
     try {
       const data = JSON.parse(cached);
@@ -45,7 +46,6 @@ function loadLocalData() {
     }
   }
 
-  // เริ่มต้นว่างเปล่า 100%
   STATE.stockIn = [];
   STATE.stockOut = [];
   STATE.customers = {};
@@ -53,7 +53,7 @@ function loadLocalData() {
 }
 
 function saveLocalData() {
-  localStorage.setItem('squid_data_v2', JSON.stringify({
+  localStorage.setItem('squid_data_v3', JSON.stringify({
     stockIn: STATE.stockIn,
     stockOut: STATE.stockOut,
     customers: STATE.customers,
@@ -66,14 +66,33 @@ function parseDate(ts) {
   return new Date(ts);
 }
 
+function getDateKey(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function formatDateThai(ts) {
   if (!ts) return '-';
   const d = new Date(ts);
   return d.toLocaleDateString('th-TH', {
-    day: '2-digit',
+    day: 'numeric',
     month: 'short',
     year: '2-digit'
   }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDateOnlyThai(dateInput) {
+  if (!dateInput) return '-';
+  const d = new Date(dateInput);
+  return d.toLocaleDateString('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: '2-digit'
+  });
 }
 
 function getFilterRangeBounds(rangeType) {
@@ -111,7 +130,10 @@ function getFilterRangeBounds(rangeType) {
   return { start, end };
 }
 
-function isDateInRange(ts, rangeType) {
+function isDateMatchFilter(ts, rangeType, customDate) {
+  if (rangeType === 'custom') {
+    return getDateKey(ts) === customDate;
+  }
   if (rangeType === 'all') return true;
   const target = new Date(ts);
   const { start, end } = getFilterRangeBounds(rangeType);
@@ -126,7 +148,17 @@ function formatWeight(num) {
   return Number(num || 0).toLocaleString('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
-// ================= UI NOTIFICATIONS =================
+// ================= UI NOTIFICATIONS & LOADING =================
+function showLoadingOverlay() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.classList.remove('hidden');
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
 function showToast(msg) {
   const toast = document.getElementById('toast');
   if (!toast) return;
@@ -162,6 +194,7 @@ function initNavigation() {
 function initStockInEvents() {
   const searchInput = document.getElementById('inSearchSupplier');
   const clearBtn = document.getElementById('inClearSearch');
+  const datePicker = document.getElementById('inDatePicker');
 
   searchInput.addEventListener('input', (e) => {
     STATE.inSearchQuery = e.target.value.trim().toLowerCase();
@@ -182,9 +215,25 @@ function initStockInEvents() {
       dateChips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       STATE.inFilterRange = chip.getAttribute('data-range');
+      STATE.inCustomDate = '';
+      datePicker.value = '';
+      datePicker.classList.remove('active');
       document.getElementById('inFilterLabel').textContent = chip.textContent;
       renderStockInList();
     });
+  });
+
+  // Date picker changed
+  datePicker.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val) {
+      dateChips.forEach(c => c.classList.remove('active'));
+      STATE.inFilterRange = 'custom';
+      STATE.inCustomDate = val;
+      datePicker.classList.add('active');
+      document.getElementById('inFilterLabel').textContent = formatDateOnlyThai(val);
+      renderStockInList();
+    }
   });
 
   // Open Add Modal
@@ -200,7 +249,6 @@ function initStockInEvents() {
     }, 150);
   });
 
-  // Custom Autocomplete for Supplier
   initSupplierAutocomplete();
 
   const weightInput = document.getElementById('inWeightInput');
@@ -216,7 +264,7 @@ function initStockInEvents() {
   weightInput.addEventListener('input', calcTotal);
   priceInput.addEventListener('input', calcTotal);
 
-  // Form Submit: ใส่ชื่อซัพใหม่ได้ทันที หรือเลือกจากที่มีอยู่
+  // Form Submit
   document.getElementById('formAddIn').addEventListener('submit', async (e) => {
     e.preventDefault();
     const supplier = document.getElementById('inSupplierInput').value.trim();
@@ -269,7 +317,6 @@ function initSupplierAutocomplete() {
     renderSupplierSuggestions(input.value.trim());
   });
 
-  // Close dropdown when clicked outside
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#inSupplierInput') && !e.target.closest('#inSupplierSuggestions')) {
       hideSupplierSuggestions();
@@ -282,7 +329,6 @@ function renderSupplierSuggestions(query) {
   const input = document.getElementById('inSupplierInput');
   if (!dropdown) return;
 
-  // รวบรวมรายชื่อซัพพลายเออร์ทั้งหมด
   const names = new Set();
   Object.keys(STATE.suppliers).forEach(n => names.add(n));
   STATE.stockIn.forEach(r => { if (r.supplier) names.add(r.supplier); });
@@ -317,14 +363,21 @@ function hideSupplierSuggestions() {
   if (dropdown) dropdown.classList.remove('show');
 }
 
+/**
+ * แสดงรายการประวัติรับเข้า เป็น "รายวัน"
+ */
 function renderStockInList() {
   const container = document.getElementById('inListContainer');
+  const banner = document.getElementById('inSupplierSearchBanner');
+
+  // กรองข้อมูลตามเงื่อนไข วันที่ และ คำค้นหา
   const filtered = STATE.stockIn.filter(item => {
-    const matchRange = isDateInRange(item.timestamp, STATE.inFilterRange);
+    const matchRange = isDateMatchFilter(item.timestamp, STATE.inFilterRange, STATE.inCustomDate);
     const matchSearch = !STATE.inSearchQuery || (item.supplier && item.supplier.toLowerCase().includes(STATE.inSearchQuery));
     return matchRange && matchSearch;
   });
 
+  // อัปเดตบล็อคสรุปด้านบน
   let totalWeight = 0;
   let totalCost = 0;
   filtered.forEach(item => {
@@ -336,40 +389,171 @@ function renderStockInList() {
   document.getElementById('inTotalCost').textContent = formatCurrency(totalCost);
   document.getElementById('inTotalCount').innerHTML = `${filtered.length} <small>รายการ</small>`;
 
+  // แบนเนอร์ค้นหาซัพพลายเออร์ตรง
+  if (STATE.inSearchQuery) {
+    const matchedSup = Object.keys(STATE.suppliers).find(s => s.toLowerCase().includes(STATE.inSearchQuery)) ||
+                       (STATE.stockIn.find(r => r.supplier && r.supplier.toLowerCase().includes(STATE.inSearchQuery))?.supplier);
+    if (matchedSup) {
+      banner.style.display = 'flex';
+      banner.innerHTML = `
+        <div>
+          <strong style="color:var(--primary); font-size:1.05rem;">⚓ ซัพพลายเออร์: ${escapeHtml(matchedSup)}</strong>
+          <div style="font-size:0.85rem; color:var(--text-muted);">แตะที่นี่เพื่อดูประวัติและยอดส่งสะสมทั้งหมดของซัพนี้</div>
+        </div>
+        <span style="font-size:1.2rem; color:var(--primary);">❯</span>
+      `;
+      banner.onclick = () => openSupplierDetail(matchedSup);
+    } else {
+      banner.style.display = 'none';
+    }
+  } else {
+    banner.style.display = 'none';
+  }
+
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📥</div>
-        <p>ยังไม่มีรายการรับเข้าในช่วงเวลานี้</p>
+        <p>ไม่พบรายการรับเข้าตามเงื่อนไขที่เลือก</p>
       </div>`;
     return;
   }
 
-  container.innerHTML = filtered.map(item => `
-    <div class="record-card" onclick="openSupplierDetail('${escapeHtml(item.supplier)}')">
-      <div class="record-header">
-        <div class="record-title-wrap">
-          <span class="record-title">⚓ ${escapeHtml(item.supplier)}</span>
+  // จัดกลุ่มเป็น "รายวัน" (Group by Date Key: YYYY-MM-DD)
+  const dateGroups = {};
+  filtered.forEach(item => {
+    const dateKey = getDateKey(item.timestamp);
+    if (!dateGroups[dateKey]) {
+      dateGroups[dateKey] = {
+        dateKey,
+        dateFormatted: formatDateOnlyThai(item.timestamp),
+        items: [],
+        totalWeight: 0,
+        totalCost: 0,
+        products: { 'หมึกหอม': 0, 'หมึกกระดอง': 0, 'หมึกกล้วย': 0 }
+      };
+    }
+    dateGroups[dateKey].items.push(item);
+    dateGroups[dateKey].totalWeight += Number(item.weight || 0);
+    dateGroups[dateKey].totalCost += Number(item.total || 0);
+    if (dateGroups[dateKey].products[item.product] !== undefined) {
+      dateGroups[dateKey].products[item.product] += Number(item.weight || 0);
+    }
+  });
+
+  // เรียงวันล่าสุดไว้บนสุด
+  const sortedDates = Object.keys(dateGroups).sort((a, b) => b.localeCompare(a));
+
+  container.innerHTML = sortedDates.map(dateKey => {
+    const group = dateGroups[dateKey];
+    return `
+      <div class="date-group-card" onclick="openDateInDetail('${dateKey}')">
+        <div class="date-group-header">
+          <div class="date-group-title">
+            📅 วันที่ ${group.dateFormatted}
+          </div>
+          <span class="date-group-badge">${group.items.length} บิล</span>
         </div>
-        <span class="record-time">${formatDateThai(item.timestamp)}</span>
-      </div>
-      <div class="record-body">
-        <div>
-          <span class="record-product">${escapeHtml(item.product)}</span>
-          <div class="record-calc">${formatWeight(item.weight)} กก. × ฿${item.price}/กก.</div>
+
+        <div class="date-products-summary">
+          <div class="product-pill">
+            <span>หมึกหอม:</span> <strong>${formatWeight(group.products['หมึกหอม'])} กก.</strong>
+          </div>
+          <div class="product-pill">
+            <span>หมึกกระดอง:</span> <strong>${formatWeight(group.products['หมึกกระดอง'])} กก.</strong>
+          </div>
+          <div class="product-pill">
+            <span>หมึกกล้วย:</span> <strong>${formatWeight(group.products['หมึกกล้วย'])} กก.</strong>
+          </div>
         </div>
-        <span class="record-amount text-danger">${formatCurrency(item.total)}</span>
+
+        <div class="date-group-footer">
+          <span class="date-footer-weight">รวม: ${formatWeight(group.totalWeight)} กก.</span>
+          <span class="date-footer-amt text-danger">รวมเป็นเงิน: ${formatCurrency(group.totalCost)}</span>
+        </div>
+
+        <div class="date-hint-text">
+          แตะเพื่อดูรายละเอียดบิลและซัพพลายเออร์ &rsaquo;
+        </div>
       </div>
-      <div class="record-footer">
-        <span>${item.note ? '📝 ' + escapeHtml(item.note) : 'แตะเพื่อดูสรุปยอดซัพนี้'}</span>
-        <span style="color: var(--primary); font-weight: 600;">ดูประวัติซัพนี้ &rsaquo;</span>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
+/**
+ * เปิด Modal ดูรายละเอียดรับเข้าของวันนั้นๆ
+ */
+function openDateInDetail(dateKey) {
+  const items = STATE.stockIn.filter(r => getDateKey(r.timestamp) === dateKey);
+  if (items.length === 0) return;
+
+  const dateFormatted = formatDateOnlyThai(items[0].timestamp);
+  document.getElementById('dateInDetailTitle').textContent = `📥 รับเข้า วันที่ ${dateFormatted}`;
+
+  let totalWeight = 0;
+  let totalCost = 0;
+  items.forEach(r => {
+    totalWeight += Number(r.weight || 0);
+    totalCost += Number(r.total || 0);
+  });
+
+  const content = document.getElementById('dateInDetailContent');
+  content.innerHTML = `
+    <div class="detail-summary-box">
+      <div>
+        <div class="detail-item-label">น้ำหนักรับเข้าทั้งหมด</div>
+        <div class="detail-item-val">${formatWeight(totalWeight)} กก.</div>
+      </div>
+      <div>
+        <div class="detail-item-label">ยอดจ่ายรวมของวัน</div>
+        <div class="detail-item-val text-danger">${formatCurrency(totalCost)}</div>
+      </div>
+    </div>
+
+    <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom: 6px;">
+      💡 แตะที่ชื่อซัพพลายเออร์ เพื่อดูประวัติและยอดรวมสะสมของซัพนั้นๆ
+    </p>
+
+    <div style="max-height: 340px; overflow-y: auto;">
+      <table class="detail-table">
+        <thead>
+          <tr>
+            <th>ซัพพลายเออร์</th>
+            <th>สินค้า</th>
+            <th>จำนวน</th>
+            <th>ราคา/กก.</th>
+            <th>รวมเงิน</th>
+            <th>เวลา</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(r => `
+            <tr>
+              <td>
+                <button class="supplier-link-btn" onclick="openSupplierDetail('${escapeHtml(r.supplier)}')">
+                  ⚓ ${escapeHtml(r.supplier)}
+                </button>
+              </td>
+              <td><strong>${escapeHtml(r.product)}</strong></td>
+              <td>${formatWeight(r.weight)} กก.</td>
+              <td>฿${r.price}</td>
+              <td class="text-danger font-bold">${formatCurrency(r.total)}</td>
+              <td style="font-size:0.8rem; color:var(--text-muted);">${formatDateThai(r.timestamp).split(' ')[1] || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  openModal('modalDateInDetail');
+}
+
+/**
+ * เปิดดูประวัติรวมของซัพพลายเออร์รายนั้นๆ
+ */
 function openSupplierDetail(supplierName) {
-  document.getElementById('supDetailTitle').textContent = `รายละเอียด: ${supplierName}`;
+  document.getElementById('supDetailTitle').textContent = `⚓ ซัพพลายเออร์: ${supplierName}`;
   const supplierRecords = STATE.stockIn.filter(r => r.supplier === supplierName);
 
   let totalWeight = 0;
@@ -383,31 +567,31 @@ function openSupplierDetail(supplierName) {
   content.innerHTML = `
     <div class="detail-summary-box">
       <div>
-        <div class="detail-item-label">ส่งมอบทั้งหมด</div>
+        <div class="detail-item-label">ส่งมอบสะสมทั้งหมด</div>
         <div class="detail-item-val">${formatWeight(totalWeight)} กก.</div>
       </div>
       <div>
-        <div class="detail-item-label">ยอดจ่ายสะสม</div>
+        <div class="detail-item-label">ยอดจ่ายสะสมทั้งหมด</div>
         <div class="detail-item-val text-danger">${formatCurrency(totalCost)}</div>
       </div>
     </div>
 
-    <h4 style="font-size:1rem; margin-bottom: 8px;">ประวัติการรับเข้าจากซัพนี้ (${supplierRecords.length} บิล)</h4>
-    <div style="max-height: 250px; overflow-y: auto;">
+    <h4 style="font-size:1rem; margin-bottom: 8px;">ประวัติการรับเข้าทั้งหมด (${supplierRecords.length} บิล)</h4>
+    <div style="max-height: 280px; overflow-y: auto;">
       <table class="detail-table">
         <thead>
           <tr>
             <th>วันที่</th>
             <th>สินค้า</th>
             <th>จำนวน</th>
-            <th>ราคา</th>
+            <th>ราคา/กก.</th>
             <th>รวม</th>
           </tr>
         </thead>
         <tbody>
           ${supplierRecords.map(r => `
             <tr>
-              <td>${formatDateThai(r.timestamp)}</td>
+              <td>${formatDateOnlyThai(r.timestamp)}</td>
               <td><strong>${escapeHtml(r.product)}</strong></td>
               <td>${formatWeight(r.weight)} กก.</td>
               <td>฿${r.price}</td>
@@ -426,6 +610,7 @@ function openSupplierDetail(supplierName) {
 function initStockOutEvents() {
   const searchInput = document.getElementById('outSearchCustomer');
   const clearBtn = document.getElementById('outClearSearch');
+  const datePicker = document.getElementById('outDatePicker');
 
   searchInput.addEventListener('input', (e) => {
     STATE.outSearchQuery = e.target.value.trim().toLowerCase();
@@ -446,12 +631,26 @@ function initStockOutEvents() {
       dateChips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       STATE.outFilterRange = chip.getAttribute('data-range');
+      STATE.outCustomDate = '';
+      datePicker.value = '';
+      datePicker.classList.remove('active');
       document.getElementById('outFilterLabel').textContent = chip.textContent;
       renderStockOutList();
     });
   });
 
-  // Custom Autocomplete for Customer
+  datePicker.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val) {
+      dateChips.forEach(c => c.classList.remove('active'));
+      STATE.outFilterRange = 'custom';
+      STATE.outCustomDate = val;
+      datePicker.classList.add('active');
+      document.getElementById('outFilterLabel').textContent = formatDateOnlyThai(val);
+      renderStockOutList();
+    }
+  });
+
   initCustomerAutocomplete();
 
   const productSelect = document.getElementById('outProductSelect');
@@ -547,7 +746,6 @@ function initCustomerAutocomplete() {
     renderCustomerSuggestions(input.value.trim());
   });
 
-  // Close when clicked outside
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#outCustomerInput') && !e.target.closest('#outCustomerSuggestions')) {
       hideCustomerSuggestions();
@@ -562,7 +760,6 @@ function renderCustomerSuggestions(query) {
   const addressInput = document.getElementById('outCustomerAddress');
   if (!dropdown) return;
 
-  // รวบรวมรายชื่อลูกค้าพร้อมข้อมูลติดต่อ
   const customerMap = {};
   Object.keys(STATE.customers).forEach(n => {
     customerMap[n] = STATE.customers[n] || {};
@@ -611,10 +808,14 @@ function hideCustomerSuggestions() {
   if (dropdown) dropdown.classList.remove('show');
 }
 
+/**
+ * แสดงรายการประวัติขายออก เป็น "รายวัน"
+ */
 function renderStockOutList() {
   const container = document.getElementById('outListContainer');
+
   const filtered = STATE.stockOut.filter(item => {
-    const matchRange = isDateInRange(item.timestamp, STATE.outFilterRange);
+    const matchRange = isDateMatchFilter(item.timestamp, STATE.outFilterRange, STATE.outCustomDate);
     const matchSearch = !STATE.outSearchQuery || (item.customer && item.customer.toLowerCase().includes(STATE.outSearchQuery));
     return matchRange && matchSearch;
   });
@@ -639,34 +840,153 @@ function renderStockOutList() {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📤</div>
-        <p>ยังไม่มีรายการขายในช่วงเวลานี้</p>
+        <p>ไม่พบรายการขายตามเงื่อนไขที่เลือก</p>
       </div>`;
     return;
   }
 
-  container.innerHTML = filtered.map(item => `
-    <div class="record-card" onclick="openSaleDetail('${item.id}')">
-      <div class="record-header">
-        <div class="record-title-wrap">
-          <span class="record-title">👤 ${escapeHtml(item.customer)}</span>
+  // จัดกลุ่มเป็นรายวัน
+  const dateGroups = {};
+  filtered.forEach(item => {
+    const dateKey = getDateKey(item.timestamp);
+    if (!dateGroups[dateKey]) {
+      dateGroups[dateKey] = {
+        dateKey,
+        dateFormatted: formatDateOnlyThai(item.timestamp),
+        items: [],
+        totalWeight: 0,
+        totalAmount: 0,
+        unpaidAmount: 0,
+        products: { 'หมึกหอม': 0, 'หมึกกระดอง': 0, 'หมึกกล้วย': 0 }
+      };
+    }
+    dateGroups[dateKey].items.push(item);
+    dateGroups[dateKey].totalWeight += Number(item.weight || 0);
+    dateGroups[dateKey].totalAmount += Number(item.total || 0);
+    if (item.status === 'รอชำระ') {
+      dateGroups[dateKey].unpaidAmount += Number(item.total || 0);
+    }
+    if (dateGroups[dateKey].products[item.product] !== undefined) {
+      dateGroups[dateKey].products[item.product] += Number(item.weight || 0);
+    }
+  });
+
+  const sortedDates = Object.keys(dateGroups).sort((a, b) => b.localeCompare(a));
+
+  container.innerHTML = sortedDates.map(dateKey => {
+    const group = dateGroups[dateKey];
+    return `
+      <div class="date-group-card" onclick="openDateOutDetail('${dateKey}')">
+        <div class="date-group-header">
+          <div class="date-group-title">
+            📅 วันที่ ${group.dateFormatted}
+          </div>
+          <span class="date-group-badge">${group.items.length} รายการ</span>
         </div>
-        <span class="status-badge ${item.status === 'ชำระเงินแล้ว' ? 'paid' : 'unpaid'}">
-          ${item.status === 'ชำระเงินแล้ว' ? '✓ ชำระแล้ว' : '⏳ รอชำระ'}
-        </span>
-      </div>
-      <div class="record-body">
-        <div>
-          <span class="record-product">${escapeHtml(item.product)}</span>
-          <div class="record-calc">${formatWeight(item.weight)} กก. × ฿${item.price}/กก.</div>
+
+        <div class="date-products-summary">
+          <div class="product-pill">
+            <span>หมึกหอม:</span> <strong>${formatWeight(group.products['หมึกหอม'])} กก.</strong>
+          </div>
+          <div class="product-pill">
+            <span>หมึกกระดอง:</span> <strong>${formatWeight(group.products['หมึกกระดอง'])} กก.</strong>
+          </div>
+          <div class="product-pill">
+            <span>หมึกกล้วย:</span> <strong>${formatWeight(group.products['หมึกกล้วย'])} กก.</strong>
+          </div>
         </div>
-        <span class="record-amount text-success">${formatCurrency(item.total)}</span>
+
+        <div class="date-group-footer">
+          <span class="date-footer-weight">รวม: ${formatWeight(group.totalWeight)} กก.</span>
+          <span class="date-footer-amt text-success">ยอดขาย: ${formatCurrency(group.totalAmount)}</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85rem; padding: 0 4px;">
+          <span>${group.unpaidAmount > 0 ? `<span class="badge warning-badge">รอชำระ ${formatCurrency(group.unpaidAmount)}</span>` : '<span class="badge" style="background:#dcfce7; color:#15803d;">ชำระครบแล้ว</span>'}</span>
+          <span class="date-hint-text">แตะเพื่อดูรายละเอียดบิล &rsaquo;</span>
+        </div>
       </div>
-      <div class="record-footer">
-        <span>🕒 ${formatDateThai(item.timestamp)}</span>
-        <span style="color: var(--primary); font-weight: 600;">คลิกเพื่อดู & ปรับสถานะ &rsaquo;</span>
+    `;
+  }).join('');
+}
+
+/**
+ * เปิด Modal ดูรายละเอียดขายออกของวันนั้นๆ
+ */
+function openDateOutDetail(dateKey) {
+  const items = STATE.stockOut.filter(r => getDateKey(r.timestamp) === dateKey);
+  if (items.length === 0) return;
+
+  const dateFormatted = formatDateOnlyThai(items[0].timestamp);
+  document.getElementById('dateOutDetailTitle').textContent = `📤 การขาย วันที่ ${dateFormatted}`;
+
+  let totalWeight = 0;
+  let totalAmount = 0;
+  let unpaidAmount = 0;
+  items.forEach(r => {
+    totalWeight += Number(r.weight || 0);
+    totalAmount += Number(r.total || 0);
+    if (r.status === 'รอชำระ') unpaidAmount += Number(r.total || 0);
+  });
+
+  const content = document.getElementById('dateOutDetailContent');
+  content.innerHTML = `
+    <div class="detail-summary-box">
+      <div>
+        <div class="detail-item-label">น้ำหนักขายรวม</div>
+        <div class="detail-item-val">${formatWeight(totalWeight)} กก.</div>
+      </div>
+      <div>
+        <div class="detail-item-label">ยอดขายรวม</div>
+        <div class="detail-item-val text-success">${formatCurrency(totalAmount)}</div>
+      </div>
+      <div>
+        <div class="detail-item-label">รอชำระ</div>
+        <div class="detail-item-val text-warning">${formatCurrency(unpaidAmount)}</div>
+      </div>
+      <div>
+        <div class="detail-item-label">จำนวนบิล</div>
+        <div class="detail-item-val">${items.length} รายการ</div>
       </div>
     </div>
-  `).join('');
+
+    <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom: 6px;">
+      💡 แตะที่รายการเพื่อดูข้อมูลที่อยู่/เบอร์โทร หรือปรับสถานะชำระเงิน
+    </p>
+
+    <div style="max-height: 340px; overflow-y: auto;">
+      <table class="detail-table">
+        <thead>
+          <tr>
+            <th>ลูกค้า</th>
+            <th>สินค้า</th>
+            <th>จำนวน</th>
+            <th>ราคา/กก.</th>
+            <th>ยอดรวม</th>
+            <th>สถานะ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(r => `
+            <tr style="cursor:pointer;" onclick="openSaleDetail('${r.id}')">
+              <td><strong>👤 ${escapeHtml(r.customer)}</strong></td>
+              <td>${escapeHtml(r.product)}</td>
+              <td>${formatWeight(r.weight)} กก.</td>
+              <td>฿${r.price}</td>
+              <td class="text-success font-bold">${formatCurrency(r.total)}</td>
+              <td>
+                <span class="status-badge ${r.status === 'ชำระเงินแล้ว' ? 'paid' : 'unpaid'}">
+                  ${r.status === 'ชำระเงินแล้ว' ? 'ชำระแล้ว' : 'รอชำระ'}
+                </span>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  openModal('modalDateOutDetail');
 }
 
 function openSaleDetail(saleId) {
@@ -686,11 +1006,11 @@ function openSaleDetail(saleId) {
       </div>
       <div>
         <div class="detail-item-label">เบอร์โทร</div>
-        <div style="font-size:0.95rem; font-weight:600;">${item.phone || '-'}</div>
+        <div style="font-size:1rem; font-weight:600;">${item.phone || '-'}</div>
       </div>
       <div>
         <div class="detail-item-label">ที่อยู่ / จัดส่ง</div>
-        <div style="font-size:0.95rem;">${escapeHtml(item.address || '-')}</div>
+        <div style="font-size:1rem;">${escapeHtml(item.address || '-')}</div>
       </div>
     </div>
 
@@ -717,11 +1037,10 @@ function openSaleDetail(saleId) {
           ${item.status === 'ชำระเงินแล้ว' ? '✓ ชำระเงินแล้ว' : '⏳ รอชำระ'}
         </span>
       </div>
-      ${item.paidAt ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px; text-align:right;">ชำระเมื่อ: ${formatDateThai(item.paidAt)}</div>` : ''}
+      ${item.paidAt ? `<div style="font-size:0.82rem; color:var(--text-muted); margin-top:4px; text-align:right;">ชำระเมื่อ: ${formatDateThai(item.paidAt)}</div>` : ''}
     </div>
   `;
 
-  // ปุ่มปิด และ ปรับสถานะ (กดปิดได้แน่นอน 100%)
   const actions = document.getElementById('saleDetailActions');
   if (item.status === 'รอชำระ') {
     actions.innerHTML = `
@@ -753,13 +1072,53 @@ function updatePaymentStatus(saleId, newStatus) {
   syncStatusToApi(saleId, newStatus);
 
   closeModal('modalSaleDetail');
+  closeModal('modalDateOutDetail');
   showToast(`อัปเดตสถานะเป็น "${newStatus}" แล้ว`);
   renderStockOutList();
   renderDashboard();
 }
 
 // ================= TAB 3: แดชบอร์ด (Dashboard) =================
+function initDashboardEvents() {
+  // สรุปการเงิน วันนี้ / เดือนนี้ toggle
+  const finBtns = document.querySelectorAll('#dashFinFilters .chip');
+  finBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      finBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      STATE.dashFinRange = btn.getAttribute('data-finrange');
+      renderDashboardFinancials();
+    });
+  });
+
+  // สรุปยอดขายรายวัน filters
+  const dailyBtns = document.querySelectorAll('#dashDailyRangeFilters .chip');
+  const dailyPicker = document.getElementById('dashDailyDatePicker');
+
+  dailyBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      dailyBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      STATE.dashDailyRange = btn.getAttribute('data-range');
+      STATE.dashDailyCustomDate = '';
+      dailyPicker.value = '';
+      renderDailySalesSummary();
+    });
+  });
+
+  dailyPicker.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val) {
+      dailyBtns.forEach(b => b.classList.remove('active'));
+      STATE.dashDailyRange = 'custom';
+      STATE.dashDailyCustomDate = val;
+      renderDailySalesSummary();
+    }
+  });
+}
+
 function renderDashboard() {
+  // 1. สต๊อกคงเหลือปัจจุบัน (กระชับ แถวเดียว ไม่เอา icon)
   const stockMap = {
     'หมึกหอม': { in: 0, out: 0 },
     'หมึกกระดอง': { in: 0, out: 0 },
@@ -783,49 +1142,59 @@ function renderDashboard() {
   const kluayRemain = stockMap['หมึกกล้วย'].in - stockMap['หมึกกล้วย'].out;
 
   document.getElementById('dashStockHom').innerHTML = `${formatWeight(homRemain)} <small>กก.</small>`;
-  document.getElementById('dashInHom').textContent = formatWeight(stockMap['หมึกหอม'].in);
-  document.getElementById('dashOutHom').textContent = formatWeight(stockMap['หมึกหอม'].out);
-
   document.getElementById('dashStockKradong').innerHTML = `${formatWeight(kradongRemain)} <small>กก.</small>`;
-  document.getElementById('dashInKradong').textContent = formatWeight(stockMap['หมึกกระดอง'].in);
-  document.getElementById('dashOutKradong').textContent = formatWeight(stockMap['หมึกกระดอง'].out);
-
   document.getElementById('dashStockKluay').innerHTML = `${formatWeight(kluayRemain)} <small>กก.</small>`;
-  document.getElementById('dashInKluay').textContent = formatWeight(stockMap['หมึกกล้วย'].in);
-  document.getElementById('dashOutKluay').textContent = formatWeight(stockMap['หมึกกล้วย'].out);
 
-  // สรุปการเงินเดือนนี้ (นับตั้งแต่วันที่ 1 ของเดือน)
-  const { start: monthStart, end: monthEnd } = getFilterRangeBounds('month');
-  
-  let monthExpense = 0;
+  // 2. สรุปการเงิน (วันนี้ / เดือนนี้)
+  renderDashboardFinancials();
+
+  // 3. รายการลูกค้าที่ยังไม่ชำระ (เหมือนเดิม)
+  renderDashboardUnpaidList();
+
+  // 4. สรุปยอดขายรายวัน (ใหม่)
+  renderDailySalesSummary();
+}
+
+function renderDashboardFinancials() {
+  const isToday = STATE.dashFinRange === 'today';
+  const labelSuffix = isToday ? 'วันนี้' : 'เดือนนี้';
+
+  document.getElementById('dashFinExpenseLabel').textContent = `ค่าใช้จ่าย${labelSuffix}`;
+  document.getElementById('dashFinProfitLabel').textContent = `กำไร${labelSuffix} (เฉพาะที่ชำระแล้ว)`;
+  document.getElementById('dashFinRevenueLabel').textContent = `ยอดขายชำระแล้ว${labelSuffix}`;
+
+  const { start, end } = getFilterRangeBounds(isToday ? 'today' : 'month');
+
+  let expense = 0;
   STATE.stockIn.forEach(r => {
     const t = new Date(r.timestamp);
-    if (t >= monthStart && t <= monthEnd) {
-      monthExpense += Number(r.total || 0);
+    if (t >= start && t <= end) {
+      expense += Number(r.total || 0);
     }
   });
 
-  let monthPaidRevenue = 0;
+  let paidRevenue = 0;
   STATE.stockOut.forEach(r => {
     const t = new Date(r.timestamp);
-    if (t >= monthStart && t <= monthEnd && r.status === 'ชำระเงินแล้ว') {
-      monthPaidRevenue += Number(r.total || 0);
+    if (t >= start && t <= end && r.status === 'ชำระเงินแล้ว') {
+      paidRevenue += Number(r.total || 0);
     }
   });
 
-  const monthProfit = monthPaidRevenue - monthExpense;
+  const profit = paidRevenue - expense;
 
-  document.getElementById('dashMonthExpense').textContent = formatCurrency(monthExpense);
-  document.getElementById('dashMonthPaidRevenue').textContent = formatCurrency(monthPaidRevenue);
-  
-  const profitEl = document.getElementById('dashMonthProfit');
-  profitEl.textContent = formatCurrency(monthProfit);
-  profitEl.className = 'fin-val ' + (monthProfit >= 0 ? 'text-success' : 'text-danger');
+  document.getElementById('dashFinExpense').textContent = formatCurrency(expense);
+  document.getElementById('dashFinRevenue').textContent = formatCurrency(paidRevenue);
 
-  // รายการลูกค้าที่ยังไม่ชำระ
+  const profitEl = document.getElementById('dashFinProfit');
+  profitEl.textContent = formatCurrency(profit);
+  profitEl.className = 'fin-val ' + (profit >= 0 ? 'text-success' : 'text-danger');
+}
+
+function renderDashboardUnpaidList() {
   const unpaidListEl = document.getElementById('dashUnpaidList');
   const unpaidRecords = STATE.stockOut.filter(r => r.status === 'รอชำระ');
-  
+
   document.getElementById('dashUnpaidSummaryBadge').textContent = `${unpaidRecords.length} รายการ`;
 
   if (unpaidRecords.length === 0) {
@@ -839,7 +1208,7 @@ function renderDashboard() {
   unpaidListEl.innerHTML = unpaidRecords.map(r => `
     <div class="unpaid-row">
       <div class="unpaid-info-wrap">
-        <span class="unpaid-name">${escapeHtml(r.customer)}</span>
+        <span class="unpaid-name">👤 ${escapeHtml(r.customer)}</span>
         <span class="unpaid-detail">${escapeHtml(r.product)} ${formatWeight(r.weight)} กก. • ${formatDateThai(r.timestamp)}</span>
       </div>
       <div class="unpaid-action-wrap">
@@ -852,9 +1221,84 @@ function renderDashboard() {
   `).join('');
 }
 
+/**
+ * บล็อคใหม่: สรุปยอดขายรายวัน (ค่าใช้จ่ายรับเข้า, ขายได้ชำระแล้ว, กำไร)
+ */
+function renderDailySalesSummary() {
+  const container = document.getElementById('dashDailySummaryList');
+  if (!container) return;
+
+  // รวบรวมวันที่ทั้งหมดที่มีในระบบ
+  const allDates = new Set();
+  STATE.stockIn.forEach(r => { if (r.timestamp) allDates.add(getDateKey(r.timestamp)); });
+  STATE.stockOut.forEach(r => { if (r.timestamp) allDates.add(getDateKey(r.timestamp)); });
+
+  // กรองวันที่ตามตัวเลือก
+  let filteredDates = Array.from(allDates);
+  if (STATE.dashDailyRange === 'custom') {
+    filteredDates = filteredDates.filter(d => d === STATE.dashDailyCustomDate);
+  } else if (STATE.dashDailyRange === 'month') {
+    const { start, end } = getFilterRangeBounds('month');
+    filteredDates = filteredDates.filter(d => {
+      const dt = new Date(d);
+      return dt >= start && dt <= end;
+    });
+  }
+
+  // เรียงวันล่าสุดไว้บนสุด
+  filteredDates.sort((a, b) => b.localeCompare(a));
+
+  if (filteredDates.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; padding: 20px; color:var(--text-muted); font-size:0.95rem;">
+        ไม่มีข้อมูลสรุปยอดขายในช่วงเวลาที่เลือก
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = filteredDates.map(dateKey => {
+    let dayExpense = 0;
+    STATE.stockIn.forEach(r => {
+      if (getDateKey(r.timestamp) === dateKey) {
+        dayExpense += Number(r.total || 0);
+      }
+    });
+
+    let dayPaidSales = 0;
+    STATE.stockOut.forEach(r => {
+      if (getDateKey(r.timestamp) === dateKey && r.status === 'ชำระเงินแล้ว') {
+        dayPaidSales += Number(r.total || 0);
+      }
+    });
+
+    const dayProfit = dayPaidSales - dayExpense;
+
+    return `
+      <div class="daily-summary-item">
+        <div class="daily-sum-date">
+          📅 ${formatDateOnlyThai(dateKey)}
+        </div>
+        <div class="daily-sum-stats">
+          <span class="daily-stat-badge">
+            <span style="color:var(--text-muted);">รับเข้า:</span>
+            <strong class="text-danger">${formatCurrency(dayExpense)}</strong>
+          </span>
+          <span class="daily-stat-badge">
+            <span style="color:var(--text-muted);">ขายได้(ชำระแล้ว):</span>
+            <strong class="text-success">${formatCurrency(dayPaidSales)}</strong>
+          </span>
+          <span class="daily-stat-badge">
+            <span style="color:var(--text-muted);">กำไร:</span>
+            <strong class="${dayProfit >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(dayProfit)}</strong>
+          </span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 // ================= MODAL HELPERS =================
 function initModals() {
-  // Global Event Delegation for all close buttons
   document.addEventListener('click', (e) => {
     const closeBtn = e.target.closest('[data-close]');
     if (closeBtn) {
@@ -863,7 +1307,6 @@ function initModals() {
     }
   });
 
-  // Click outside to close modal
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
@@ -888,7 +1331,7 @@ function initRefreshButton() {
   const refreshBtn = document.getElementById('btnRefresh');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      fetchDataFromGoogle();
+      fetchDataFromGoogle(true);
     });
   }
 }
@@ -901,8 +1344,11 @@ function updateConnectionBadge() {
 }
 
 // API Integration Helpers
-async function fetchDataFromGoogle() {
+async function fetchDataFromGoogle(isManual = false) {
   if (!STATE.apiUrl) return;
+  
+  showLoadingOverlay();
+
   const badge = document.getElementById('connectionStatus');
   if (badge) {
     badge.textContent = '🔄 กำลังดึงข้อมูล...';
@@ -920,12 +1366,14 @@ async function fetchDataFromGoogle() {
       saveLocalData();
       renderCurrentTab();
       updateConnectionBadge();
-      showToast('ดึงข้อมูลจาก Google Sheet สำเร็จ!');
+      hideLoadingOverlay();
+      if (isManual) showToast('รีเฟรชข้อมูลจาก Google Sheet สำเร็จ!');
     } else {
       throw new Error(data.message || 'Fetch failed');
     }
   } catch (err) {
     console.error('Fetch error:', err);
+    hideLoadingOverlay();
     if (badge) {
       badge.textContent = '⚠️ ใช้ข้อมูลในเครื่อง (ออฟไลน์)';
       badge.style.color = '#f59e0b';
@@ -1004,13 +1452,14 @@ window.addEventListener('DOMContentLoaded', () => {
   initModals();
   initStockInEvents();
   initStockOutEvents();
+  initDashboardEvents();
   initRefreshButton();
-  updateConnectionBadge();
 
+  // เรนเดอร์หน้าจอเริ่มต้น
   renderStockInList();
   renderStockOutList();
   renderDashboard();
 
-  // ดึงข้อมูลจริงจาก Google Sheet ทันทีที่เปิดหน้าเว็บ
+  // ดึงข้อมูลจริงจาก Google Sheet ทันที พร้อมแสดง Loading กลางจอ
   fetchDataFromGoogle();
 });
