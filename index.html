@@ -17,7 +17,7 @@
       <div class="loading-spinner"></div>
       <div class="loading-icon">🦑</div>
       <div class="loading-text">🔄 กำลังดึงข้อมูล...</div>
-      <div class="loading-subtext">กำลังเชื่อมต่อกับ Google Sheet กรุณารอสักครู่</div>
+      <div class="loading-subtext">กำลังเชื่อมต่อ กรุณารอสักครู่</div>
     </div>
   </div>
 
@@ -76,14 +76,13 @@
 
         <div class="filter-row-wrap">
           <div class="chip-filters" id="inDateFilters">
-            <button class="chip active" data-range="today">วันนี้</button>
+            <button class="chip active" data-range="all">ทั้งหมด</button>
+            <button class="chip" data-range="today">วันนี้</button>
             <button class="chip" data-range="week">อาทิตย์นี้</button>
             <button class="chip" data-range="month">เดือนนี้</button>
-            <button class="chip" data-range="year">ปีนี้</button>
-            <button class="chip" data-range="all">ทั้งหมด</button>
           </div>
           <div class="date-picker-wrap">
-            <input type="date" id="inDatePicker" class="date-picker-input" title="เลือกวันที่เฉพาะเจาะจง">
+            <input type="date" id="inDatePicker" class="date-picker-input" title="เลือกวันที่เฉพาะ">
           </div>
         </div>
       </div>
@@ -140,14 +139,13 @@
 
         <div class="filter-row-wrap">
           <div class="chip-filters" id="outDateFilters">
-            <button class="chip active" data-range="today">วันนี้</button>
+            <button class="chip active" data-range="all">ทั้งหมด</button>
+            <button class="chip" data-range="today">วันนี้</button>
             <button class="chip" data-range="week">อาทิตย์นี้</button>
             <button class="chip" data-range="month">เดือนนี้</button>
-            <button class="chip" data-range="year">ปีนี้</button>
-            <button class="chip" data-range="all">ทั้งหมด</button>
           </div>
           <div class="date-picker-wrap">
-            <input type="date" id="outDatePicker" class="date-picker-input" title="เลือกวันที่เฉพาะเจาะจง">
+            <input type="date" id="outDatePicker" class="date-picker-input" title="เลือกวันที่เฉพาะ">
           </div>
         </div>
       </div>
@@ -198,7 +196,7 @@
           <h2 class="dash-title">📊 สรุปการเงิน</h2>
           <div class="chip-filters sm" id="dashFinFilters">
             <button class="chip active" data-finrange="today">วันนี้</button>
-            <button class="chip" data-finrange="month">เดือนนี้ (วันที่ 1 ถึงปัจจุบัน)</button>
+            <button class="chip" data-finrange="month">เดือนนี้</button>
           </div>
         </div>
         <div class="financial-grid">
