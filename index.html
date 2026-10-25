@@ -258,10 +258,11 @@
   <div class="modal-overlay" id="modalAddIn">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3 class="modal-title">📥 บันทึกรับเข้าปลาหมึก</h3>
+        <h3 class="modal-title" id="modalAddInTitle">📥 บันทึกรับเข้าปลาหมึก</h3>
         <button class="modal-close" data-close="modalAddIn">&times;</button>
       </div>
       <form id="formAddIn" class="modal-body">
+        <input type="hidden" id="editInId" value="">
         
         <div class="form-group">
           <label>ซัพพลายเออร์ / ร้านส่ง <span class="required">*</span></label>
@@ -313,10 +314,11 @@
   <div class="modal-overlay" id="modalAddOut">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3 class="modal-title">📤 บันทึกขายออกปลาหมึก</h3>
+        <h3 class="modal-title" id="modalAddOutTitle">📤 บันทึกขายออกปลาหมึก</h3>
         <button class="modal-close" data-close="modalAddOut">&times;</button>
       </div>
       <form id="formAddOut" class="modal-body">
+        <input type="hidden" id="editOutId" value="">
         
         <div class="form-group">
           <label>ชื่อลูกค้า <span class="required">*</span></label>
