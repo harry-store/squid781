@@ -243,6 +243,9 @@ function initStockInEvents() {
 
   // Open Add Modal
   document.getElementById('btnOpenAddIn').addEventListener('click', () => {
+    document.getElementById('editInId').value = '';
+    document.getElementById('modalAddInTitle').textContent = '📥 บันทึกรับเข้าปลาหมึก';
+    document.getElementById('btnSubmitIn').textContent = 'บันทึกรับเข้า';
     document.getElementById('formAddIn').reset();
     document.getElementById('inCalcTotal').textContent = '฿0.00';
     hideSupplierSuggestions();
@@ -269,9 +272,10 @@ function initStockInEvents() {
   weightInput.addEventListener('input', calcTotal);
   priceInput.addEventListener('input', calcTotal);
 
-  // Form Submit
+  // Form Submit: รองรับทั้งเพิ่มใหม่ และแก้ไขข้อมูลเดิม
   document.getElementById('formAddIn').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const editId = document.getElementById('editInId').value;
     const supplier = document.getElementById('inSupplierInput').value.trim();
     const product = document.getElementById('inProductSelect').value;
     const weight = parseFloat(weightInput.value) || 0;
@@ -284,27 +288,48 @@ function initStockInEvents() {
       return;
     }
 
-    const newRecord = {
-      id: 'IN-' + Date.now().toString(36).toUpperCase(),
-      timestamp: new Date().toISOString(),
-      supplier,
-      product,
-      weight,
-      price,
-      total,
-      note
-    };
+    if (editId) {
+      // โหมดแก้ไข (Update existing record)
+      const existing = STATE.stockIn.find(r => r.id === editId);
+      if (existing) {
+        existing.supplier = supplier;
+        existing.product = product;
+        existing.weight = weight;
+        existing.price = price;
+        existing.total = total;
+        existing.note = note;
 
-    STATE.stockIn.unshift(newRecord);
-    if (!STATE.suppliers[supplier]) {
-      STATE.suppliers[supplier] = { name: supplier };
+        if (!STATE.suppliers[supplier]) {
+          STATE.suppliers[supplier] = { name: supplier };
+        }
+        saveLocalData();
+        syncUpdateStockInToApi(existing);
+        showToast(`แก้ไขรายการรับเข้า ${product} สำเร็จ!`);
+      }
+    } else {
+      // โหมดเพิ่มใหม่ (Add new record)
+      const newRecord = {
+        id: 'IN-' + Date.now().toString(36).toUpperCase(),
+        timestamp: new Date().toISOString(),
+        supplier,
+        product,
+        weight,
+        price,
+        total,
+        note
+      };
+
+      STATE.stockIn.unshift(newRecord);
+      if (!STATE.suppliers[supplier]) {
+        STATE.suppliers[supplier] = { name: supplier };
+      }
+      saveLocalData();
+      syncStockInToApi(newRecord);
+      showToast(`บันทึกรับเข้า ${product} สำเร็จ!`);
     }
-    saveLocalData();
 
-    syncStockInToApi(newRecord);
-
+    document.getElementById('editInId').value = '';
     closeModal('modalAddIn');
-    showToast(`บันทึกรับเข้า ${product} สำเร็จ!`);
     renderStockInList();
     renderDashboard();
   });
@@ -532,7 +557,7 @@ function openDateInDetail(dateKey) {
             <th>จำนวน</th>
             <th>ราคา/กก.</th>
             <th>รวมเงิน</th>
-            <th>เวลา</th>
+            <th>จัดการ</th>
           </tr>
         </thead>
         <tbody>
@@ -547,7 +572,12 @@ function openDateInDetail(dateKey) {
               <td>${formatWeight(r.weight)} กก.</td>
               <td>฿${r.price}</td>
               <td class="text-danger font-bold">${formatCurrency(r.total)}</td>
-              <td style="font-size:0.8rem; color:var(--text-muted);">${formatDateThai(r.timestamp).split(' ')[1] || ''}</td>
+              <td>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn-edit-sm" onclick="editStockIn('${r.id}')" title="แก้ไขรายการ">✏️ แก้</button>
+                  <button class="btn-del-sm" onclick="deleteStockIn('${r.id}')" title="ลบรายการ">🗑️</button>
+                </div>
+              </td>
             </tr>
           `).join('')}
         </tbody>
@@ -556,6 +586,51 @@ function openDateInDetail(dateKey) {
   `;
 
   openModal('modalDateInDetail');
+}
+
+/**
+ * โหลดข้อมูลเดิมมาใส่ในฟอร์มเพื่อแก้ไขรับเข้า (Edit Stock In)
+ */
+function editStockIn(id) {
+  const item = STATE.stockIn.find(r => r.id === id);
+  if (!item) return;
+
+  closeModal('modalDateInDetail');
+
+  document.getElementById('editInId').value = item.id;
+  document.getElementById('inSupplierInput').value = item.supplier;
+  document.getElementById('inProductSelect').value = item.product;
+  document.getElementById('inWeightInput').value = item.weight;
+  document.getElementById('inPriceInput').value = item.price;
+  document.getElementById('inNoteInput').value = item.note || '';
+  document.getElementById('inCalcTotal').textContent = formatCurrency(item.weight * item.price);
+
+  document.getElementById('modalAddInTitle').textContent = '✏️ แก้ไขรายการรับเข้า';
+  document.getElementById('btnSubmitIn').textContent = 'บันทึกการแก้ไข';
+
+  hideSupplierSuggestions();
+  openModal('modalAddIn');
+}
+
+/**
+ * ลบรายการรับเข้า (Delete Stock In)
+ */
+function deleteStockIn(id) {
+  const item = STATE.stockIn.find(r => r.id === id);
+  if (!item) return;
+
+  if (!confirm(`คุณต้องการลบรายการรับเข้า "${item.product}" ${item.weight} กก. จาก "${item.supplier}" ใช่หรือไม่?`)) {
+    return;
+  }
+
+  STATE.stockIn = STATE.stockIn.filter(r => r.id !== id);
+  saveLocalData();
+  syncDeleteStockInToApi(id);
+
+  closeModal('modalDateInDetail');
+  showToast('ลบรายการรับเข้าเรียบร้อย');
+  renderStockInList();
+  renderDashboard();
 }
 
 /**
@@ -689,6 +764,9 @@ function initStockOutEvents() {
 
   // Open Add Modal
   document.getElementById('btnOpenAddOut').addEventListener('click', () => {
+    document.getElementById('editOutId').value = '';
+    document.getElementById('modalAddOutTitle').textContent = '📤 บันทึกขายออกปลาหมึก';
+    document.getElementById('btnSubmitOut').textContent = 'บันทึกขายออก';
     document.getElementById('formAddOut').reset();
     productSelect.dispatchEvent(new Event('change'));
     document.getElementById('outCalcTotal').textContent = '฿0.00';
@@ -701,9 +779,10 @@ function initStockOutEvents() {
     }, 150);
   });
 
-  // Submit Stock Out
+  // Submit Stock Out: รองรับทั้งเพิ่มใหม่ และแก้ไขข้อมูลเดิม
   document.getElementById('formAddOut').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const editId = document.getElementById('editOutId').value;
     const customer = document.getElementById('outCustomerInput').value.trim();
     const phone = document.getElementById('outCustomerPhone').value.trim();
     const address = document.getElementById('outCustomerAddress').value.trim();
@@ -717,28 +796,48 @@ function initStockOutEvents() {
       return;
     }
 
-    const newRecord = {
-      id: 'OUT-' + Date.now().toString(36).toUpperCase(),
-      timestamp: new Date().toISOString(),
-      customer,
-      phone,
-      address,
-      product,
-      weight,
-      price,
-      total,
-      status: 'รอชำระ',
-      paidAt: null
-    };
+    if (editId) {
+      // โหมดแก้ไขรายการเดิม
+      const existing = STATE.stockOut.find(r => r.id === editId);
+      if (existing) {
+        existing.customer = customer;
+        existing.phone = phone;
+        existing.address = address;
+        existing.product = product;
+        existing.weight = weight;
+        existing.price = price;
+        existing.total = total;
 
-    STATE.stockOut.unshift(newRecord);
-    STATE.customers[customer] = { phone, address };
-    saveLocalData();
+        STATE.customers[customer] = { phone, address };
+        saveLocalData();
+        syncUpdateStockOutToApi(existing);
+        showToast(`แก้ไขรายการขาย "${customer}" สำเร็จ!`);
+      }
+    } else {
+      // โหมดเพิ่มรายการใหม่
+      const newRecord = {
+        id: 'OUT-' + Date.now().toString(36).toUpperCase(),
+        timestamp: new Date().toISOString(),
+        customer,
+        phone,
+        address,
+        product,
+        weight,
+        price,
+        total,
+        status: 'รอชำระ',
+        paidAt: null
+      };
 
-    syncStockOutToApi(newRecord);
+      STATE.stockOut.unshift(newRecord);
+      STATE.customers[customer] = { phone, address };
+      saveLocalData();
+      syncStockOutToApi(newRecord);
+      showToast(`บันทึกขายให้ "${customer}" สำเร็จ (รอชำระ)`);
+    }
 
+    document.getElementById('editOutId').value = '';
     closeModal('modalAddOut');
-    showToast(`บันทึกขายให้ "${customer}" สำเร็จ (รอชำระ)`);
     renderStockOutList();
     renderDashboard();
   });
@@ -1060,23 +1159,66 @@ function openSaleDetail(saleId) {
   `;
 
   const actions = document.getElementById('saleDetailActions');
-  if (item.status === 'รอชำระ') {
-    actions.innerHTML = `
-      <button type="button" class="btn btn-outline" data-close="modalSaleDetail" onclick="closeModal('modalSaleDetail')">ปิด</button>
-      <button type="button" class="btn btn-success" onclick="updatePaymentStatus('${item.id}', 'ชำระเงินแล้ว')">
-        ✓ ปรับเป็นชำระเงินแล้ว
-      </button>
-    `;
-  } else {
-    actions.innerHTML = `
-      <button type="button" class="btn btn-outline" data-close="modalSaleDetail" onclick="closeModal('modalSaleDetail')">ปิด</button>
-      <button type="button" class="btn btn-outline" style="color:var(--warning)" onclick="updatePaymentStatus('${item.id}', 'รอชำระ')">
-        เปลี่ยนกลับเป็นรอชำระ
-      </button>
-    `;
-  }
+  const payBtnHtml = item.status === 'รอชำระ' ?
+    `<button type="button" class="btn btn-success" onclick="updatePaymentStatus('${item.id}', 'ชำระเงินแล้ว')">✓ ปรับเป็นชำระเงินแล้ว</button>` :
+    `<button type="button" class="btn btn-outline" style="color:var(--warning)" onclick="updatePaymentStatus('${item.id}', 'รอชำระ')">เปลี่ยนกลับเป็นรอชำระ</button>`;
+
+  actions.innerHTML = `
+    <button type="button" class="btn btn-outline" data-close="modalSaleDetail" onclick="closeModal('modalSaleDetail')">ปิด</button>
+    <button type="button" class="btn btn-edit-sm" style="padding:10px 14px; font-size:0.95rem;" onclick="editStockOut('${item.id}')">✏️ แก้ไขบิล</button>
+    <button type="button" class="btn btn-danger-outline" style="padding:10px 14px; font-size:0.95rem;" onclick="deleteStockOut('${item.id}')">🗑️ ลบบิล</button>
+    ${payBtnHtml}
+  `;
 
   openModal('modalSaleDetail');
+}
+
+/**
+ * โหลดข้อมูลเดิมมาใส่ในฟอร์มเพื่อแก้ไขการขาย (Edit Stock Out)
+ */
+function editStockOut(id) {
+  const item = STATE.stockOut.find(s => s.id === id);
+  if (!item) return;
+
+  closeModal('modalSaleDetail');
+  closeModal('modalDateOutDetail');
+
+  document.getElementById('editOutId').value = item.id;
+  document.getElementById('outCustomerInput').value = item.customer;
+  document.getElementById('outCustomerPhone').value = item.phone || '';
+  document.getElementById('outCustomerAddress').value = item.address || '';
+  document.getElementById('outProductSelect').value = item.product;
+  document.getElementById('outWeightInput').value = item.weight;
+  document.getElementById('outPriceInput').value = item.price;
+  document.getElementById('outCalcTotal').textContent = formatCurrency(item.weight * item.price);
+
+  document.getElementById('modalAddOutTitle').textContent = '✏️ แก้ไขรายการขายออก';
+  document.getElementById('btnSubmitOut').textContent = 'บันทึกการแก้ไข';
+
+  hideCustomerSuggestions();
+  openModal('modalAddOut');
+}
+
+/**
+ * ลบรายการขายออก (Delete Stock Out)
+ */
+function deleteStockOut(id) {
+  const item = STATE.stockOut.find(s => s.id === id);
+  if (!item) return;
+
+  if (!confirm(`คุณต้องการลบรายการขายให้ลูกค้า "${item.customer}" จำนวน ${item.weight} กก. (฿${formatCurrency(item.total)}) ใช่หรือไม่?`)) {
+    return;
+  }
+
+  STATE.stockOut = STATE.stockOut.filter(r => r.id !== id);
+  saveLocalData();
+  syncDeleteStockOutToApi(id);
+
+  closeModal('modalSaleDetail');
+  closeModal('modalDateOutDetail');
+  showToast('ลบรายการขายเรียบร้อย');
+  renderStockOutList();
+  renderDashboard();
 }
 
 function updatePaymentStatus(saleId, newStatus) {
@@ -1414,6 +1556,34 @@ async function syncStockInToApi(record) {
   }
 }
 
+async function syncUpdateStockInToApi(record) {
+  if (!STATE.apiUrl) return;
+  try {
+    await fetch(STATE.apiUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'updateStockIn', record })
+    });
+  } catch (e) {
+    console.error('Failed to sync update stock in:', e);
+  }
+}
+
+async function syncDeleteStockInToApi(id) {
+  if (!STATE.apiUrl) return;
+  try {
+    await fetch(STATE.apiUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'deleteStockIn', id })
+    });
+  } catch (e) {
+    console.error('Failed to sync delete stock in:', e);
+  }
+}
+
 async function syncStockOutToApi(record) {
   if (!STATE.apiUrl) return;
   try {
@@ -1425,6 +1595,34 @@ async function syncStockOutToApi(record) {
     });
   } catch (e) {
     console.error('Failed to sync stock out to API:', e);
+  }
+}
+
+async function syncUpdateStockOutToApi(record) {
+  if (!STATE.apiUrl) return;
+  try {
+    await fetch(STATE.apiUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'updateStockOut', record })
+    });
+  } catch (e) {
+    console.error('Failed to sync update stock out:', e);
+  }
+}
+
+async function syncDeleteStockOutToApi(id) {
+  if (!STATE.apiUrl) return;
+  try {
+    await fetch(STATE.apiUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'deleteStockOut', id })
+    });
+  } catch (e) {
+    console.error('Failed to sync delete stock out:', e);
   }
 }
 
