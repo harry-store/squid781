@@ -517,6 +517,62 @@ body {
   color: var(--text-primary);
 }
 
+.btn-danger {
+  background-color: var(--danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c;
+}
+
+.btn-danger-outline {
+  background-color: transparent;
+  border: 1.5px solid #fecaca;
+  color: var(--danger);
+}
+
+.btn-danger-outline:hover {
+  background-color: #fef2f2;
+}
+
+.btn-edit-sm {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: var(--primary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-edit-sm:hover {
+  background: #e0f2fe;
+}
+
+.btn-del-sm {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: var(--danger);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.btn-del-sm:hover {
+  background: #fee2e2;
+}
+
 .btn-sm {
   padding: 5px 12px;
   font-size: 0.82rem;
