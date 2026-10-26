@@ -911,6 +911,158 @@ body {
   gap: 4px;
 }
 
+/* ================= Total Sales Block & Chart ================= */
+.total-sales-month-card {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1.5px solid #a7f3d0;
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);
+}
+
+.ts-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #065f46;
+  margin-bottom: 4px;
+}
+
+.ts-value {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #047857;
+  line-height: 1.2;
+}
+
+.ts-sub {
+  font-size: 0.82rem;
+  color: #059669;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Sales Chart Container */
+.sales-chart-container {
+  background: #ffffff;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  animation: fadeIn 0.25s ease-out;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 8px;
+}
+
+.chart-header-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.chart-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chart-svg {
+  min-width: 320px;
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-bar {
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.chart-bar:hover {
+  opacity: 0.85;
+}
+
+.chart-bar-text {
+  font-size: 11px;
+  fill: #065f46;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.chart-axis-text {
+  font-size: 11px;
+  fill: #64748b;
+  text-anchor: middle;
+}
+
+/* Daily Paid Sales List */
+.daily-paid-sales-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.daily-paid-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.daily-paid-item {
+  background: #f8fafc;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.daily-paid-item:hover {
+  border-color: #86efac;
+  background-color: #f0fdf4;
+}
+
+.daily-paid-date {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.daily-paid-count {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: normal;
+  margin-left: 4px;
+}
+
+.daily-paid-val {
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: #16a34a;
+}
+
 /* ================= Bottom Navigation ================= */
 .bottom-nav {
   position: fixed;
@@ -1296,10 +1448,6 @@ input:focus, select:focus, textarea:focus {
   }
 
   .flex-column-sm {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
     flex-direction: column;
     align-items: flex-start;
   }
