@@ -1696,7 +1696,7 @@ function initRefreshButton() {
 function updateConnectionBadge() {
   const badge = document.getElementById('connectionStatus');
   if (!badge) return;
-  badge.textContent = '🟢 พร้อมใช้งาน (Google Sheet)';
+  badge.textContent = '🟢 พร้อมใช้งาน';
   badge.style.color = '#10b981';
 }
 
