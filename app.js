@@ -89,7 +89,13 @@ function formatDateThai(ts) {
 
 function formatDateOnlyThai(dateInput) {
   if (!dateInput) return '-';
-  const d = new Date(dateInput);
+  let d;
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    const [y, m, day] = dateInput.split('-').map(Number);
+    d = new Date(y, m - 1, day);
+  } else {
+    d = new Date(dateInput);
+  }
   return d.toLocaleDateString('th-TH', {
     day: 'numeric',
     month: 'short',
@@ -1275,6 +1281,29 @@ function initDashboardEvents() {
       renderDailySalesSummary();
     }
   });
+
+  // Toggle กราฟยอดขายรวม
+  const btnToggleChart = document.getElementById('btnToggleSalesChart');
+  const btnCloseChart = document.getElementById('btnCloseChart');
+  const chartView = document.getElementById('salesChartView');
+
+  if (btnToggleChart && chartView) {
+    btnToggleChart.addEventListener('click', () => {
+      const isHidden = chartView.style.display === 'none' || !chartView.style.display;
+      chartView.style.display = isHidden ? 'block' : 'none';
+      btnToggleChart.innerHTML = isHidden ? '❌ ซ่อนกราฟ' : '📊 ดูกราฟยอดขาย';
+      if (isHidden) {
+        chartView.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+
+  if (btnCloseChart && chartView) {
+    btnCloseChart.addEventListener('click', () => {
+      chartView.style.display = 'none';
+      if (btnToggleChart) btnToggleChart.innerHTML = '📊 ดูกราฟยอดขาย';
+    });
+  }
 }
 
 function renderDashboard() {
@@ -1313,6 +1342,9 @@ function renderDashboard() {
 
   // 4. สรุปยอดขายรายวัน (ใหม่)
   renderDailySalesSummary();
+
+  // 5. บล็อคยอดขายรวม (ใหม่)
+  renderTotalSalesBlock();
 }
 
 function renderDashboardFinancials() {
@@ -1455,6 +1487,171 @@ function renderDailySalesSummary() {
       </div>
     `;
   }).join('');
+}
+
+/**
+ * บล็อคใหม่: ยอดขายรวม (สรุปยอดขายที่ชำระแล้วเดือนนี้, รายวัน, กราฟยอดขายรายวัน)
+ */
+function renderTotalSalesBlock() {
+  const totalPaidMonthEl = document.getElementById('dashTotalPaidThisMonth');
+  const totalPaidCountEl = document.getElementById('dashTotalPaidCount');
+  const dailyPaidListEl = document.getElementById('dashDailyPaidList');
+  const paidDaysCountEl = document.getElementById('dashPaidDaysCount');
+  if (!totalPaidMonthEl || !dailyPaidListEl) return;
+
+  // 1. คำนวณสรุปยอดขายที่ชำระแล้วของ "เดือนนี้" (วันที่ 1 ถึงปัจจุบัน)
+  const { start: monthStart, end: monthEnd } = getFilterRangeBounds('month');
+  let monthPaidSum = 0;
+  let monthPaidCount = 0;
+
+  STATE.stockOut.forEach(r => {
+    if (r.status === 'ชำระเงินแล้ว' && r.timestamp) {
+      const t = new Date(r.timestamp);
+      if (t >= monthStart && t <= monthEnd) {
+        monthPaidSum += Number(r.total || 0);
+        monthPaidCount += 1;
+      }
+    }
+  });
+
+  totalPaidMonthEl.textContent = formatCurrency(monthPaidSum);
+  if (totalPaidCountEl) {
+    totalPaidCountEl.textContent = `${monthPaidCount} รายการที่ชำระแล้วในเดือนนี้`;
+  }
+
+  // 2. สรุปรายวัน วันที่ และยอดที่ชำระของแต่ละวัน
+  const dailyPaidMap = {};
+  STATE.stockOut.forEach(r => {
+    if (r.status === 'ชำระเงินแล้ว' && r.timestamp) {
+      const dKey = getDateKey(r.timestamp);
+      if (!dailyPaidMap[dKey]) {
+        dailyPaidMap[dKey] = {
+          dateKey: dKey,
+          total: 0,
+          count: 0,
+          weight: 0
+        };
+      }
+      dailyPaidMap[dKey].total += Number(r.total || 0);
+      dailyPaidMap[dKey].count += 1;
+      dailyPaidMap[dKey].weight += Number(r.weight || 0);
+    }
+  });
+
+  const dailyPaidList = Object.values(dailyPaidMap).sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+
+  if (paidDaysCountEl) {
+    paidDaysCountEl.textContent = `${dailyPaidList.length} วันที่มีการชำระ`;
+  }
+
+  if (dailyPaidList.length === 0) {
+    dailyPaidListEl.innerHTML = `
+      <div style="text-align:center; padding: 24px 16px; color:var(--text-muted); font-size:0.95rem;">
+        ยังไม่มีรายการยอดขายที่ชำระแล้ว
+      </div>`;
+  } else {
+    dailyPaidListEl.innerHTML = dailyPaidList.map(item => `
+      <div class="daily-paid-item">
+        <div class="daily-paid-date">
+          <span class="dp-day">📅 ${formatDateOnlyThai(item.dateKey)}</span>
+          <span class="dp-count">${item.count} บิล • ${formatWeight(item.weight)} กก.</span>
+        </div>
+        <div class="daily-paid-val text-success">
+          ${formatCurrency(item.total)}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // 3. กราฟยอดขายรายวัน
+  renderSalesChart(dailyPaidList);
+}
+
+/**
+ * เรนเดอร์กราฟยอดขายรายวันแบบ Pure SVG (เบา โหลดไว คมชัดทุกหน้าจอ)
+ */
+function renderSalesChart(dailyPaidList) {
+  const chartWrap = document.getElementById('salesChartSvgWrap');
+  if (!chartWrap) return;
+
+  if (!dailyPaidList || dailyPaidList.length === 0) {
+    chartWrap.innerHTML = `
+      <div style="text-align:center; padding: 30px; color:var(--text-muted); font-size:0.9rem;">
+        ไม่มีข้อมูลสำหรับแสดงกราฟ
+      </div>`;
+    return;
+  }
+
+  // นำข้อมูลเรียงตามวันที่จากซ้ายไปขวา (อดีต -> ล่าสุด) สูงสุด 12 วัน
+  const chartData = [...dailyPaidList]
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+    .slice(-12);
+
+  const maxVal = Math.max(...chartData.map(d => d.total), 1);
+  const svgWidth = 600;
+  const svgHeight = 220;
+  const padLeft = 40;
+  const padRight = 30;
+  const padTop = 35;
+  const padBottom = 45;
+  const plotWidth = svgWidth - padLeft - padRight;
+  const plotHeight = svgHeight - padTop - padBottom;
+
+  const n = chartData.length;
+  const barStep = plotWidth / n;
+  const barWidth = Math.min(36, barStep * 0.65);
+
+  let barsHtml = '';
+  chartData.forEach((d, idx) => {
+    const barHeight = Math.max(6, (d.total / maxVal) * plotHeight);
+    const x = padLeft + idx * barStep + (barStep - barWidth) / 2;
+    const y = padTop + plotHeight - barHeight;
+
+    let dObj;
+    if (typeof d.dateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.dateKey)) {
+      const [y, m, day] = d.dateKey.split('-').map(Number);
+      dObj = new Date(y, m - 1, day);
+    } else {
+      dObj = new Date(d.dateKey);
+    }
+    const dayLabel = dObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+
+    let valLabel = '';
+    if (d.total >= 1000000) {
+      valLabel = (d.total / 1000000).toFixed(1) + 'M';
+    } else if (d.total >= 10000) {
+      valLabel = (d.total / 1000).toFixed(0) + 'k';
+    } else {
+      valLabel = '฿' + Math.round(d.total).toLocaleString('th-TH');
+    }
+
+    barsHtml += `
+      <g class="chart-col">
+        <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="4" fill="url(#salesBarGradient)" style="cursor: pointer; transition: opacity 0.2s;">
+          <title>${formatDateOnlyThai(d.dateKey)}: ${formatCurrency(d.total)} (${d.count} บิล)</title>
+        </rect>
+        <text x="${x + barWidth / 2}" y="${y - 8}" text-anchor="middle" font-size="11" font-weight="700" fill="#2d3748">${valLabel}</text>
+        <text x="${x + barWidth / 2}" y="${padTop + plotHeight + 20}" text-anchor="middle" font-size="10.5" fill="#718096">${dayLabel}</text>
+      </g>
+    `;
+  });
+
+  const baseLineY = padTop + plotHeight;
+
+  chartWrap.innerHTML = `
+    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" class="chart-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="salesBarGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#48bb78" />
+          <stop offset="100%" stop-color="#38a169" />
+        </linearGradient>
+      </defs>
+      <line x1="${padLeft - 10}" y1="${padTop}" x2="${svgWidth - padRight + 10}" y2="${padTop}" stroke="#e2e8f0" stroke-dasharray="3 3" />
+      <line x1="${padLeft - 10}" y1="${padTop + plotHeight / 2}" x2="${svgWidth - padRight + 10}" y2="${padTop + plotHeight / 2}" stroke="#e2e8f0" stroke-dasharray="3 3" />
+      <line x1="${padLeft - 10}" y1="${baseLineY}" x2="${svgWidth - padRight + 10}" y2="${baseLineY}" stroke="#cbd5e0" stroke-width="1.5" />
+      ${barsHtml}
+    </svg>
+  `;
 }
 
 // ================= MODAL HELPERS =================
